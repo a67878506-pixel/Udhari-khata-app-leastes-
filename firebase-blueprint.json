@@ -1,0 +1,153 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "customUserId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "customUserId"]
+    },
+    "UsernameRecord": {
+      "title": "UsernameRecord",
+      "description": "Unique username registry record",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "customUserId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "customUserId"]
+    },
+    "Khata": {
+      "title": "Khata",
+      "description": "A ledger / hisaab account notebook",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "totalPeople": { "type": "number" },
+        "totalLena": { "type": "number" },
+        "totalDena": { "type": "number" },
+        "netBalance": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "ownerUid", "memberUids"]
+    },
+    "Person": {
+      "title": "Person",
+      "description": "A customer or debtor inside a khata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "khataId": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "totalLena": { "type": "number" },
+        "totalDena": { "type": "number" },
+        "netBalance": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "lastTransactionAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "khataId", "name"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A monetary entry in a person hisaab",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "khataId": { "type": "string" },
+        "personId": { "type": "string" },
+        "personName": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["LENA", "DENA"] },
+        "note": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "createdByUid": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "updatedByUid": { "type": "string" },
+        "updatedByName": { "type": "string" }
+      },
+      "required": ["id", "khataId", "personId", "amount", "type", "timestamp", "createdByUid"]
+    },
+    "KhataHistory": {
+      "title": "KhataHistory",
+      "description": "Activity audit log entry for a khata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "khataId": { "type": "string" },
+        "actionType": { "type": "string" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "personName": { "type": "string" },
+        "performedByUid": { "type": "string" },
+        "performedByName": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "khataId", "actionType", "description", "performedByUid", "timestamp"]
+    },
+    "ShareRequest": {
+      "title": "ShareRequest",
+      "description": "Partner sharing request for a khata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "khataId": { "type": "string" },
+        "khataName": { "type": "string" },
+        "fromUid": { "type": "string" },
+        "fromName": { "type": "string" },
+        "fromCustomUserId": { "type": "string" },
+        "toUid": { "type": "string" },
+        "toName": { "type": "string" },
+        "toCustomUserId": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "REJECTED", "CANCELLED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "khataId", "fromUid", "toUid", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profiles"
+    },
+    "/user_ids/{customUserId}": {
+      "schema": { "$ref": "#/entities/UsernameRecord" },
+      "description": "Unique user IDs mapping"
+    },
+    "/khatas/{khataId}": {
+      "schema": { "$ref": "#/entities/Khata" },
+      "description": "Khatas owned or shared"
+    },
+    "/khatas/{khataId}/people/{personId}": {
+      "schema": { "$ref": "#/entities/Person" },
+      "description": "People inside a khata"
+    },
+    "/khatas/{khataId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Financial transactions"
+    },
+    "/khatas/{khataId}/history/{historyId}": {
+      "schema": { "$ref": "#/entities/KhataHistory" },
+      "description": "Audit history of khata actions"
+    },
+    "/shareRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/ShareRequest" },
+      "description": "Sharing invitations"
+    }
+  }
+}

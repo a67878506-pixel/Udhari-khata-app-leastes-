@@ -1,0 +1,6 @@
+{
+  "name": "Udhaar Khata",
+  "description": "Production-ready Android Udhaar Khata and Hisaab-Kitab application with Firebase Auth, Cloud Firestore, khata-specific sharing, and real-time transaction tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
