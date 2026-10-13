@@ -193,7 +193,7 @@ fun ShareKhataScreen(
                                 }
                             }
 
-                            // Owner can remove partner
+                            // Owner can remove partner, or Partner themselves can leave
                             if (isOwner) {
                                 TextButton(
                                     onClick = { partnerToRemove = Pair(pUid, partnerName) },
@@ -201,6 +201,14 @@ fun ShareKhataScreen(
                                     modifier = Modifier.testTag("remove_partner_$pUid")
                                 ) {
                                     Text("Stop Sharing")
+                                }
+                            } else if (pUid == currentUid) {
+                                TextButton(
+                                    onClick = { partnerToRemove = Pair(pUid, partnerName) },
+                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                    modifier = Modifier.testTag("leave_khata_button")
+                                ) {
+                                    Text("Leave Khata")
                                 }
                             }
                         }
@@ -380,14 +388,23 @@ fun ShareKhataScreen(
         }
     }
 
-    // Stop Sharing Confirmation Dialog
+    // Stop Sharing / Leave Khata Confirmation Dialog
     partnerToRemove?.let { (pUid, pName) ->
+        val isSelfLeaving = pUid == currentUid
         AppConfirmationDialog(
-            title = "Stop Sharing with $pName?",
-            message = "If you stop sharing, $pName will immediately lose all access to '${currentKhata.name}'. They will no longer be able to read or modify any transactions in this khata. All existing records and history will remain intact.",
-            confirmButtonText = "Remove Partner",
+            title = if (isSelfLeaving) "Leave '${currentKhata.name}'?" else "Stop Sharing with $pName?",
+            message = if (isSelfLeaving) {
+                "Are you sure you want to leave this shared khata? You will immediately lose access to all its transactions and records. The owner and remaining members will keep their data intact."
+            } else {
+                "If you stop sharing, $pName will immediately lose all access to '${currentKhata.name}'. They will no longer be able to read or modify any transactions in this khata. All existing records and history will remain intact."
+            },
+            confirmButtonText = if (isSelfLeaving) "Leave Khata" else "Remove Partner",
             onConfirm = {
-                khataViewModel.stopSharing(currentKhata.id, pUid, pName, currentUserName)
+                if (isSelfLeaving) {
+                    khataViewModel.leaveSharedKhata(currentKhata.id, currentUserName, onBack)
+                } else {
+                    khataViewModel.stopSharing(currentKhata.id, pUid, pName, currentUserName)
+                }
                 partnerToRemove = null
             },
             onDismiss = { partnerToRemove = null }

@@ -193,3 +193,98 @@ test("Khata sharing test: User A shares Khata 1 with User B, but User B cannot r
   await assertFails(bobDb.collection("khatas").doc("khata_1").get());
   await assertFails(bobDb.collection("khatas").doc("khata_1").collection("people").doc("p1").get());
 });
+
+test("Trash and Recover permissions: Only owner can soft-delete and recover", async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore();
+    await adminDb.collection("khatas").doc("khata_shared").set({
+      id: "khata_shared",
+      name: "Shared Store",
+      ownerUid: ALICE_UID,
+      memberUids: [ALICE_UID, BOB_UID],
+      isDeleted: false,
+      totalPeople: 0,
+      totalLena: 0,
+      totalDena: 0,
+      netBalance: 0,
+    });
+  });
+
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+
+  // Bob (member) tries to soft-delete -> MUST FAIL
+  await assertFails(
+    bobDb.collection("khatas").doc("khata_shared").update({
+      isDeleted: true,
+      deletedBy: BOB_UID,
+    })
+  );
+
+  // Alice (owner) soft-deletes -> SUCCEEDS
+  await assertSucceeds(
+    aliceDb.collection("khatas").doc("khata_shared").update({
+      isDeleted: true,
+      deletedBy: ALICE_UID,
+    })
+  );
+
+  // Bob (member) tries to recover -> MUST FAIL
+  await assertFails(
+    bobDb.collection("khatas").doc("khata_shared").update({
+      isDeleted: false,
+      deletedBy: null,
+    })
+  );
+
+  // Alice (owner) recovers -> SUCCEEDS
+  await assertSucceeds(
+    aliceDb.collection("khatas").doc("khata_shared").update({
+      isDeleted: false,
+      deletedBy: null,
+    })
+  );
+
+  // Bob (member) cannot permanently delete
+  await assertFails(bobDb.collection("khatas").doc("khata_shared").delete());
+
+  // Alice (owner) can permanently delete
+  await assertSucceeds(aliceDb.collection("khatas").doc("khata_shared").delete());
+});
+
+test("Partner leave permission: Bob can leave shared khata, but cannot remove Alice", async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore();
+    await adminDb.collection("khatas").doc("khata_team").set({
+      id: "khata_team",
+      name: "Team Khata",
+      ownerUid: ALICE_UID,
+      memberUids: [ALICE_UID, BOB_UID],
+      isDeleted: false,
+      totalPeople: 0,
+      totalLena: 0,
+      totalDena: 0,
+      netBalance: 0,
+    });
+  });
+
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+
+  // Bob tries to remove Alice (owner) -> MUST FAIL
+  await assertFails(
+    bobDb.collection("khatas").doc("khata_team").update({
+      memberUids: [BOB_UID],
+    })
+  );
+
+  // Bob leaves by removing only himself -> SUCCEEDS
+  await assertSucceeds(
+    bobDb.collection("khatas").doc("khata_team").update({
+      memberUids: [ALICE_UID],
+    })
+  );
+
+  // After leaving, Bob can no longer read
+  await assertFails(bobDb.collection("khatas").doc("khata_team").get());
+});
+

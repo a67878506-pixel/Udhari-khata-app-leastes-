@@ -35,6 +35,7 @@ fun HomeScreen(
     authViewModel: AuthViewModel,
     onKhataClick: (Khata) -> Unit,
     onNavigateToShareRequests: () -> Unit,
+    onNavigateToTrash: () -> Unit,
     onNavigateToProfile: () -> Unit
 ) {
     val khataState by khataViewModel.uiState.collectAsState()
@@ -74,6 +75,12 @@ fun HomeScreen(
         else -> 0
     }
 
+    // Trash count
+    val trashCount = when (val trash = khataState.trashKhatas) {
+        is UiState.Success -> trash.data.size
+        else -> 0
+    }
+
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(khataState.actionSuccessMessage, khataState.actionErrorMessage) {
@@ -104,6 +111,25 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    // Trash / Recently Deleted button
+                    IconButton(
+                        onClick = onNavigateToTrash,
+                        modifier = Modifier.testTag("trash_screen_button")
+                    ) {
+                        BadgedBox(
+                            badge = {
+                                if (trashCount > 0) {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    ) { Text("$trashCount") }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "Trash / Deleted Khatas")
+                        }
+                    }
+
                     // Pending Share Requests icon with badge
                     IconButton(
                         onClick = onNavigateToShareRequests,

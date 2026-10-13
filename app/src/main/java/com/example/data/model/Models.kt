@@ -39,6 +39,9 @@ data class Khata(
     val totalLena: Double = 0.0,
     val totalDena: Double = 0.0,
     val netBalance: Double = 0.0,
+    val isDeleted: Boolean = false,
+    val deletedAt: Timestamp? = null,
+    val deletedBy: String? = null,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 )

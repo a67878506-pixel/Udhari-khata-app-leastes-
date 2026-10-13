@@ -200,12 +200,31 @@ class KhataRepository(
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
                     doc.toObject(Khata::class.java)?.let { khata ->
-                        if (khata.id.isBlank()) khata.copy(id = doc.id) else khata
+                        val populated = if (khata.id.isBlank()) khata.copy(id = doc.id) else khata
+                        populated
                     }
-                }
+                }.filter { !it.isDeleted } // Exclude soft-deleted khatas from normal views
             }
             .catch { e ->
                 handleFirestoreError(e as Exception, OperationType.LIST, "khatas")
+                throw e
+            }
+    }
+
+    fun observeTrashKhatas(): Flow<List<Khata>> {
+        val uid = auth.currentUser?.uid ?: return emptyFlow()
+        return db.collection("khatas")
+            .whereEqualTo("ownerUid", uid)
+            .snapshots()
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    doc.toObject(Khata::class.java)?.let { khata ->
+                        if (khata.id.isBlank()) khata.copy(id = doc.id) else khata
+                    }
+                }.filter { it.isDeleted }
+            }
+            .catch { e ->
+                handleFirestoreError(e as Exception, OperationType.LIST, "khatas/trash")
                 throw e
             }
     }
@@ -227,6 +246,9 @@ class KhataRepository(
                 "totalLena" to 0.0,
                 "totalDena" to 0.0,
                 "netBalance" to 0.0,
+                "isDeleted" to false,
+                "deletedAt" to null,
+                "deletedBy" to null,
                 "createdAt" to FieldValue.serverTimestamp(),
                 "updatedAt" to FieldValue.serverTimestamp()
             )
@@ -273,20 +295,145 @@ class KhataRepository(
         }
     }
 
-    suspend fun deleteKhata(khataId: String): Result<Unit> {
+    suspend fun softDeleteKhata(khataId: String, performerName: String): Result<Unit> {
         return try {
             val uid = requireUserId()
-            // Verify owner
             val khataDoc = db.collection("khatas").document(khataId).get().await()
             val ownerUid = khataDoc.getString("ownerUid")
+            val khataName = khataDoc.getString("name") ?: "Khata"
+
             if (ownerUid != uid) {
-                return Result.failure(IllegalStateException("Only the owner can delete this khata."))
+                return Result.failure(IllegalStateException("Only the owner can move this khata to Trash."))
             }
 
-            db.collection("khatas").document(khataId).delete().await()
+            db.collection("khatas").document(khataId).update(
+                mapOf(
+                    "isDeleted" to true,
+                    "deletedAt" to FieldValue.serverTimestamp(),
+                    "deletedBy" to performerName,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+
+            logHistory(
+                khataId = khataId,
+                actionType = "KHATA_MOVED_TO_TRASH",
+                description = "Khata '$khataName' moved to Trash by $performerName",
+                performedByUid = uid,
+                performedByName = performerName
+            )
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "khatas/$khataId")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun recoverKhata(khataId: String, performerName: String): Result<Unit> {
+        return try {
+            val uid = requireUserId()
+            val khataDoc = db.collection("khatas").document(khataId).get().await()
+            val ownerUid = khataDoc.getString("ownerUid")
+            val khataName = khataDoc.getString("name") ?: "Khata"
+
+            if (ownerUid != uid) {
+                return Result.failure(IllegalStateException("Only the owner can recover this khata."))
+            }
+
+            db.collection("khatas").document(khataId).update(
+                mapOf(
+                    "isDeleted" to false,
+                    "deletedAt" to null,
+                    "deletedBy" to null,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+
+            logHistory(
+                khataId = khataId,
+                actionType = "KHATA_RECOVERED",
+                description = "Khata '$khataName' recovered from Trash by $performerName",
+                performedByUid = uid,
+                performedByName = performerName
+            )
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "khatas/$khataId")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun permanentlyDeleteKhata(khataId: String): Result<Unit> {
+        return try {
+            val uid = requireUserId()
+            val khataRef = db.collection("khatas").document(khataId)
+            val khataDoc = khataRef.get().await()
+            val ownerUid = khataDoc.getString("ownerUid")
+
+            if (ownerUid != uid) {
+                return Result.failure(IllegalStateException("Only the owner can permanently delete this khata."))
+            }
+
+            // Clean up subcollections: people, transactions, history
+            val peopleSnap = khataRef.collection("people").get().await()
+            val txSnap = khataRef.collection("transactions").get().await()
+            val histSnap = khataRef.collection("history").get().await()
+
+            val batch = db.batch()
+            for (p in peopleSnap.documents) {
+                batch.delete(p.reference)
+            }
+            for (t in txSnap.documents) {
+                batch.delete(t.reference)
+            }
+            for (h in histSnap.documents) {
+                batch.delete(h.reference)
+            }
+            batch.delete(khataRef)
+            batch.commit().await()
+
             Result.success(Unit)
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.DELETE, "khatas/$khataId")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun leaveSharedKhata(khataId: String, memberName: String): Result<Unit> {
+        return try {
+            val uid = requireUserId()
+            val khataRef = db.collection("khatas").document(khataId)
+            val khataDoc = khataRef.get().await()
+
+            val ownerUid = khataDoc.getString("ownerUid")
+            val khataName = khataDoc.getString("name") ?: "Khata"
+
+            if (ownerUid == uid) {
+                return Result.failure(IllegalStateException("Owner cannot leave their own khata."))
+            }
+
+            // Remove only self
+            khataRef.update(
+                mapOf(
+                    "memberUids" to FieldValue.arrayRemove(uid),
+                    "members.$uid" to FieldValue.delete(),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+
+            logHistory(
+                khataId = khataId,
+                actionType = "MEMBER_LEFT",
+                description = "$memberName left shared khata '$khataName'",
+                performedByUid = uid,
+                performedByName = memberName
+            )
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "khatas/$khataId")
             Result.failure(e)
         }
     }

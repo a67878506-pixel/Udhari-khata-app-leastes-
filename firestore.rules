@@ -37,15 +37,34 @@ service cloud.firestore {
       
       // Update rules:
       // 1. Existing members or owner can update.
-      // 2. A non-member recipient can update ONLY to accept a pending share request:
-      //    - Must add ONLY their own UID to memberUids
-      //    - Existing memberUids cannot be removed
-      //    - Owner, name, and financial totals cannot change
+      // 2. Soft-delete and Recover can ONLY be performed by the owner.
+      // 3. A partner leaving can remove only their own UID.
+      // 4. A non-member recipient can update ONLY to accept a pending share request.
       allow update: if request.auth != null && (
-        // Existing member or owner
-        request.auth.uid in resource.data.memberUids || request.auth.uid == resource.data.ownerUid ||
+        // Case 1: Owner updating khata details
+        request.auth.uid == resource.data.ownerUid ||
+
+        // Case 2: Regular member updating khata balances/metadata (cannot change ownerUid, memberUids, or isDeleted)
+        (
+          request.auth.uid in resource.data.memberUids &&
+          request.resource.data.ownerUid == resource.data.ownerUid &&
+          request.resource.data.memberUids == resource.data.memberUids &&
+          request.resource.data.isDeleted == resource.data.isDeleted
+        ) ||
         
-        // Recipient accepting a share request
+        // Case 3: Partner leaving the khata voluntarily (removes ONLY their own UID)
+        (
+          request.auth.uid in resource.data.memberUids &&
+          request.auth.uid != resource.data.ownerUid &&
+          request.resource.data.ownerUid == resource.data.ownerUid &&
+          request.resource.data.name == resource.data.name &&
+          request.resource.data.isDeleted == resource.data.isDeleted &&
+          request.resource.data.memberUids.hasAll(resource.data.memberUids.removeAll([request.auth.uid])) &&
+          request.resource.data.memberUids.size() == resource.data.memberUids.size() - 1 &&
+          !(request.auth.uid in request.resource.data.memberUids)
+        ) ||
+
+        // Case 3: Recipient accepting a share request
         (
           request.resource.data.ownerUid == resource.data.ownerUid &&
           request.resource.data.name == resource.data.name &&
@@ -60,17 +79,26 @@ service cloud.firestore {
         )
       );
       
+      // Permanent delete allowed strictly by the owner
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerUid;
 
       // Subcollections inside Khata
       match /people/{personId} {
         allow read: if isKhataMember(khataId);
         allow write: if isKhataMember(khataId);
+        allow delete: if request.auth != null && (
+          isKhataMember(khataId) || 
+          request.auth.uid == get(/databases/$(database)/documents/khatas/$(khataId)).data.ownerUid
+        );
       }
 
       match /transactions/{transactionId} {
         allow read: if isKhataMember(khataId);
         allow write: if isKhataMember(khataId);
+        allow delete: if request.auth != null && (
+          isKhataMember(khataId) || 
+          request.auth.uid == get(/databases/$(database)/documents/khatas/$(khataId)).data.ownerUid
+        );
       }
 
       match /history/{historyId} {
@@ -80,7 +108,8 @@ service cloud.firestore {
           request.auth.uid in get(/databases/$(database)/documents/khatas/$(khataId)).data.memberUids ||
           request.resource.data.performedByUid == request.auth.uid
         );
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if request.auth != null && request.auth.uid == get(/databases/$(database)/documents/khatas/$(khataId)).data.ownerUid;
       }
     }
 

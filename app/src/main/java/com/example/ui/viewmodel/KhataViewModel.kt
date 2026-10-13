@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 
 data class KhataUiState(
     val khatas: UiState<List<Khata>> = UiState.Loading,
+    val trashKhatas: UiState<List<Khata>> = UiState.Loading,
     val khataSearchQuery: String = "",
     val currentKhata: Khata? = null,
     val people: UiState<List<Person>> = UiState.Loading,
@@ -49,9 +50,14 @@ class KhataViewModel(
     init {
         if (repository.getCurrentUid() != null) {
             observeKhatas()
+            observeTrashKhatas()
             observeShareRequests()
         } else {
-            _uiState.update { it.copy(khatas = UiState.Success(emptyList()), incomingShareRequests = UiState.Success(emptyList())) }
+            _uiState.update { it.copy(
+                khatas = UiState.Success(emptyList()),
+                trashKhatas = UiState.Success(emptyList()),
+                incomingShareRequests = UiState.Success(emptyList())
+            ) }
         }
     }
 
@@ -224,16 +230,79 @@ class KhataViewModel(
         }
     }
 
-    fun deleteKhata(khataId: String, onDeleted: () -> Unit) {
+    fun observeTrashKhatas() {
+        val uid = repository.getCurrentUid()
+        if (uid == null) {
+            _uiState.update { it.copy(trashKhatas = UiState.Success(emptyList())) }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(trashKhatas = UiState.Loading) }
+            try {
+                repository.observeTrashKhatas()
+                    .catch { e ->
+                        _uiState.update { it.copy(trashKhatas = UiState.Error(e.localizedMessage ?: "Failed to load trash")) }
+                    }
+                    .collect { list ->
+                        _uiState.update { it.copy(trashKhatas = UiState.Success(list)) }
+                    }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(trashKhatas = UiState.Error(e.localizedMessage ?: "Failed to load trash")) }
+            }
+        }
+    }
+
+    fun softDeleteKhata(khataId: String, performerName: String, onDeleted: () -> Unit) {
         viewModelScope.launch {
             _uiState.update { it.copy(isActionLoading = true) }
-            val res = repository.deleteKhata(khataId)
+            val res = repository.softDeleteKhata(khataId, performerName)
             _uiState.update { it.copy(isActionLoading = false) }
             if (res.isSuccess) {
-                _uiState.update { it.copy(currentKhata = null, actionSuccessMessage = "Khata deleted.") }
+                _uiState.update { it.copy(currentKhata = null, actionSuccessMessage = "Khata moved to Trash.") }
                 onDeleted()
             } else {
-                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to delete khata.") }
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to move khata to trash.") }
+            }
+        }
+    }
+
+    fun recoverKhata(khataId: String, performerName: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true) }
+            val res = repository.recoverKhata(khataId, performerName)
+            _uiState.update { it.copy(isActionLoading = false) }
+            if (res.isSuccess) {
+                _uiState.update { it.copy(actionSuccessMessage = "Khata restored successfully.") }
+            } else {
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to recover khata.") }
+            }
+        }
+    }
+
+    fun permanentlyDeleteKhata(khataId: String, onDeleted: () -> Unit = {}) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true) }
+            val res = repository.permanentlyDeleteKhata(khataId)
+            _uiState.update { it.copy(isActionLoading = false) }
+            if (res.isSuccess) {
+                _uiState.update { it.copy(actionSuccessMessage = "Khata permanently deleted.") }
+                onDeleted()
+            } else {
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to delete khata permanently.") }
+            }
+        }
+    }
+
+    fun leaveSharedKhata(khataId: String, memberName: String, onLeft: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true) }
+            val res = repository.leaveSharedKhata(khataId, memberName)
+            _uiState.update { it.copy(isActionLoading = false) }
+            if (res.isSuccess) {
+                _uiState.update { it.copy(currentKhata = null, actionSuccessMessage = "You have left this shared khata.") }
+                onLeft()
+            } else {
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to leave khata.") }
             }
         }
     }

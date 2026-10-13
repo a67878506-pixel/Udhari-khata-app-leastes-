@@ -130,11 +130,20 @@ fun KhataDetailScreen(
                         )
                         if (isOwner) {
                             DropdownMenuItem(
-                                text = { Text("Delete Khata", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                text = { Text("Move to Trash", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                                 onClick = {
                                     showMenu = false
                                     showDeleteKhataDialog = true
+                                }
+                            )
+                        } else {
+                            DropdownMenuItem(
+                                text = { Text("Leave Shared Khata", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    khataViewModel.leaveSharedKhata(currentKhata.id, currentUserName, onBack)
                                 }
                             )
                         }
@@ -338,15 +347,15 @@ fun KhataDetailScreen(
         )
     }
 
-    // Delete Khata Confirmation Dialog
+    // Delete Khata (Move to Trash) Confirmation Dialog
     if (showDeleteKhataDialog) {
         AppConfirmationDialog(
-            title = "Delete Khata?",
-            message = "Are you sure you want to delete '${currentKhata.name}'? This will permanently remove this khata for you and all authorized partners.",
-            confirmButtonText = "Delete Khata",
+            title = "Move to Trash?",
+            message = "Move '${currentKhata.name}' to Trash? It will disappear from your active Khatas but all people and transactions are safely preserved. You can restore it anytime from Trash.",
+            confirmButtonText = "Move to Trash",
             onConfirm = {
                 showDeleteKhataDialog = false
-                khataViewModel.deleteKhata(currentKhata.id, onBack)
+                khataViewModel.softDeleteKhata(currentKhata.id, currentUserName, onBack)
             },
             onDismiss = { showDeleteKhataDialog = false }
         )

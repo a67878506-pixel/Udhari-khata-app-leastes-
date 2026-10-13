@@ -115,7 +115,19 @@ fun UdhaarKhataApp(
                         }
                     }
                 },
+                onNavigateToTrash = {
+                    khataViewModel.observeTrashKhatas()
+                    navController.navigate("trash")
+                },
                 onNavigateToProfile = { navController.navigate("profile") }
+            )
+        }
+
+        composable("trash") {
+            TrashScreen(
+                khataViewModel = khataViewModel,
+                authViewModel = authViewModel,
+                onBack = { navController.popBackStack() }
             )
         }
 
