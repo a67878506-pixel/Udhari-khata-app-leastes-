@@ -2,9 +2,11 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -225,42 +227,56 @@ fun KhataDetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 FilterChip(
                     selected = selectedFilter == "ALL",
                     onClick = { selectedFilter = "ALL" },
-                    label = { Text("All (${people.size})") },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text("All (${people.size})", fontWeight = FontWeight.Medium) },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("filter_chip_all")
                 )
                 FilterChip(
                     selected = selectedFilter == "LENA",
                     onClick = { selectedFilter = "LENA" },
-                    label = { Text("Lena Hai") },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text("Lena Hai", fontWeight = FontWeight.Medium) },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("filter_chip_lena")
                 )
                 FilterChip(
                     selected = selectedFilter == "DENA",
                     onClick = { selectedFilter = "DENA" },
-                    label = { Text("Dena Hai") },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text("Dena Hai", fontWeight = FontWeight.Medium) },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("filter_chip_dena")
                 )
                 FilterChip(
                     selected = selectedFilter == "SETTLED",
                     onClick = { selectedFilter = "SETTLED" },
-                    label = { Text("Settled") },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text("Settled", fontWeight = FontWeight.Medium) },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("filter_chip_settled")
                 )
                 FilterChip(
                     selected = selectedFilter == "TRASH",
                     onClick = { selectedFilter = "TRASH" },
-                    label = { Text("Trash (${trashPeople.size})") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    label = { Text("Trash", fontWeight = FontWeight.Medium) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
                         selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer
                     ),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("filter_chip_trash")
                 )
             }
 
