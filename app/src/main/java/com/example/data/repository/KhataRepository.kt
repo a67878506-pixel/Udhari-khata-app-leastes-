@@ -199,8 +199,9 @@ class KhataRepository(
             .snapshots()
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
+                    val isDel = doc.getBoolean("isDeleted") ?: doc.getBoolean("deleted") ?: false
                     doc.toObject(Khata::class.java)?.let { khata ->
-                        val populated = if (khata.id.isBlank()) khata.copy(id = doc.id) else khata
+                        val populated = if (khata.id.isBlank()) khata.copy(id = doc.id, isDeleted = isDel) else khata.copy(isDeleted = isDel)
                         populated
                     }
                 }.filter { !it.isDeleted } // Exclude soft-deleted khatas from normal views
@@ -214,14 +215,16 @@ class KhataRepository(
     fun observeTrashKhatas(): Flow<List<Khata>> {
         val uid = auth.currentUser?.uid ?: return emptyFlow()
         return db.collection("khatas")
-            .whereEqualTo("ownerUid", uid)
+            .whereArrayContains("memberUids", uid)
             .snapshots()
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
+                    val isDel = doc.getBoolean("isDeleted") ?: doc.getBoolean("deleted") ?: false
                     doc.toObject(Khata::class.java)?.let { khata ->
-                        if (khata.id.isBlank()) khata.copy(id = doc.id) else khata
+                        val populated = if (khata.id.isBlank()) khata.copy(id = doc.id, isDeleted = isDel) else khata.copy(isDeleted = isDel)
+                        populated
                     }
-                }.filter { it.isDeleted }
+                }.filter { it.isDeleted && it.ownerUid == uid }
             }
             .catch { e ->
                 handleFirestoreError(e as Exception, OperationType.LIST, "khatas/trash")
@@ -247,6 +250,7 @@ class KhataRepository(
                 "totalDena" to 0.0,
                 "netBalance" to 0.0,
                 "isDeleted" to false,
+                "deleted" to false,
                 "deletedAt" to null,
                 "deletedBy" to null,
                 "createdAt" to FieldValue.serverTimestamp(),
@@ -309,6 +313,7 @@ class KhataRepository(
             db.collection("khatas").document(khataId).update(
                 mapOf(
                     "isDeleted" to true,
+                    "deleted" to true,
                     "deletedAt" to FieldValue.serverTimestamp(),
                     "deletedBy" to performerName,
                     "updatedAt" to FieldValue.serverTimestamp()
@@ -344,6 +349,7 @@ class KhataRepository(
             db.collection("khatas").document(khataId).update(
                 mapOf(
                     "isDeleted" to false,
+                    "deleted" to false,
                     "deletedAt" to null,
                     "deletedBy" to null,
                     "updatedAt" to FieldValue.serverTimestamp()
@@ -446,13 +452,34 @@ class KhataRepository(
             .snapshots()
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
+                    val isDel = doc.getBoolean("isDeleted") ?: doc.getBoolean("deleted") ?: false
                     doc.toObject(Person::class.java)?.let { person ->
-                        if (person.id.isBlank()) person.copy(id = doc.id) else person
+                        val populated = if (person.id.isBlank()) person.copy(id = doc.id, isDeleted = isDel) else person.copy(isDeleted = isDel)
+                        populated
                     }
-                }
+                }.filter { !it.isDeleted }
             }
             .catch { e ->
                 handleFirestoreError(e as Exception, OperationType.LIST, "khatas/$khataId/people")
+                throw e
+            }
+    }
+
+    fun observeTrashPeople(khataId: String): Flow<List<Person>> {
+        if (auth.currentUser == null) return emptyFlow()
+        return db.collection("khatas").document(khataId).collection("people")
+            .snapshots()
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    val isDel = doc.getBoolean("isDeleted") ?: doc.getBoolean("deleted") ?: false
+                    doc.toObject(Person::class.java)?.let { person ->
+                        val populated = if (person.id.isBlank()) person.copy(id = doc.id, isDeleted = isDel) else person.copy(isDeleted = isDel)
+                        populated
+                    }
+                }.filter { it.isDeleted }
+            }
+            .catch { e ->
+                handleFirestoreError(e as Exception, OperationType.LIST, "khatas/$khataId/people/trash")
                 throw e
             }
     }
@@ -471,19 +498,17 @@ class KhataRepository(
                 "totalLena" to 0.0,
                 "totalDena" to 0.0,
                 "netBalance" to 0.0,
+                "isDeleted" to false,
+                "deleted" to false,
+                "deletedAt" to null,
+                "deletedBy" to null,
                 "createdAt" to FieldValue.serverTimestamp(),
                 "updatedAt" to FieldValue.serverTimestamp()
             )
 
             personRef.set(personData).await()
 
-            // Update totalPeople in khata
-            db.collection("khatas").document(khataId).update(
-                mapOf(
-                    "totalPeople" to FieldValue.increment(1),
-                    "updatedAt" to FieldValue.serverTimestamp()
-                )
-            ).await()
+            recomputeKhataTotals(khataId)
 
             logHistory(
                 khataId = khataId,
@@ -528,7 +553,72 @@ class KhataRepository(
         }
     }
 
-    suspend fun deletePerson(khataId: String, personId: String, personName: String, performerName: String): Result<Unit> {
+    suspend fun softDeletePerson(khataId: String, personId: String, personName: String, performerName: String): Result<Unit> {
+        return try {
+            val uid = requireUserId()
+            db.collection("khatas").document(khataId).collection("people").document(personId).update(
+                mapOf(
+                    "isDeleted" to true,
+                    "deleted" to true,
+                    "deletedAt" to FieldValue.serverTimestamp(),
+                    "deletedBy" to performerName,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+
+            // Recalculate khata totals so soft-deleted person is excluded from active totalPeople and balance
+            recomputeKhataTotals(khataId)
+
+            logHistory(
+                khataId = khataId,
+                actionType = "PERSON_MOVED_TO_TRASH",
+                description = "Person '$personName' moved to Trash by $performerName",
+                personName = personName,
+                performedByUid = uid,
+                performedByName = performerName
+            )
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "khatas/$khataId/people/$personId")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun recoverPerson(khataId: String, personId: String, personName: String, performerName: String): Result<Unit> {
+        return try {
+            val uid = requireUserId()
+            db.collection("khatas").document(khataId).collection("people").document(personId).update(
+                mapOf(
+                    "isDeleted" to false,
+                    "deleted" to false,
+                    "deletedAt" to null,
+                    "deletedBy" to null,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+
+            // Restore person balance and khata totals
+            recomputePersonBalances(khataId, personId)
+            recomputeKhataTotals(khataId)
+
+            logHistory(
+                khataId = khataId,
+                actionType = "PERSON_RECOVERED",
+                description = "Person '$personName' recovered from Trash by $performerName",
+                personName = personName,
+                performedByUid = uid,
+                performedByName = performerName
+            )
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "khatas/$khataId/people/$personId")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun permanentlyDeletePerson(khataId: String, personId: String, personName: String, performerName: String): Result<Unit> {
         return try {
             val uid = requireUserId()
             // Delete all transactions for this person
@@ -544,13 +634,13 @@ class KhataRepository(
             batch.delete(db.collection("khatas").document(khataId).collection("people").document(personId))
             batch.commit().await()
 
-            // Decrement totalPeople and recompute khata balances
+            // Recompute khata balances
             recomputeKhataTotals(khataId)
 
             logHistory(
                 khataId = khataId,
-                actionType = "PERSON_DELETED",
-                description = "Deleted '$personName' and all related hisaab",
+                actionType = "PERSON_PERMANENTLY_DELETED",
+                description = "Permanently deleted '$personName' and all related hisaab",
                 personName = personName,
                 performedByUid = uid,
                 performedByName = performerName
@@ -563,6 +653,11 @@ class KhataRepository(
         }
     }
 
+    // Default deletePerson means soft delete as per specifications
+    suspend fun deletePerson(khataId: String, personId: String, personName: String, performerName: String): Result<Unit> {
+        return softDeletePerson(khataId, personId, personName, performerName)
+    }
+
     // --- TRANSACTIONS MANAGEMENT ---
 
     fun observeTransactions(khataId: String, personId: String): Flow<List<Transaction>> {
@@ -573,15 +668,45 @@ class KhataRepository(
             .snapshots()
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
+                    val isDel = doc.getBoolean("isDeleted") ?: doc.getBoolean("deleted") ?: false
                     doc.toObject(Transaction::class.java)?.let { tx ->
-                        if (tx.id.isBlank()) tx.copy(id = doc.id) else tx
+                        val populated = if (tx.id.isBlank()) tx.copy(id = doc.id, isDeleted = isDel) else tx.copy(isDeleted = isDel)
+                        populated
                     }
-                }.sortedByDescending {
+                }.filter { !it.isDeleted }
+                .sortedByDescending {
                     it.timestamp?.toDate()?.time ?: 0L
                 }
             }
             .catch { e ->
                 handleFirestoreError(e as Exception, OperationType.LIST, "khatas/$khataId/transactions")
+                throw e
+            }
+    }
+
+    fun observeTrashTransactions(khataId: String, personId: String? = null): Flow<List<Transaction>> {
+        if (auth.currentUser == null) return emptyFlow()
+        val query = if (personId != null) {
+            db.collection("khatas").document(khataId).collection("transactions").whereEqualTo("personId", personId)
+        } else {
+            db.collection("khatas").document(khataId).collection("transactions")
+        }
+        return query
+            .snapshots()
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    val isDel = doc.getBoolean("isDeleted") ?: doc.getBoolean("deleted") ?: false
+                    doc.toObject(Transaction::class.java)?.let { tx ->
+                        val populated = if (tx.id.isBlank()) tx.copy(id = doc.id, isDeleted = isDel) else tx.copy(isDeleted = isDel)
+                        populated
+                    }
+                }.filter { it.isDeleted }
+                .sortedByDescending {
+                    it.deletedAt?.toDate()?.time ?: it.timestamp?.toDate()?.time ?: 0L
+                }
+            }
+            .catch { e ->
+                handleFirestoreError(e as Exception, OperationType.LIST, "khatas/$khataId/transactions/trash")
                 throw e
             }
     }
@@ -615,6 +740,10 @@ class KhataRepository(
                 "type" to type,
                 "note" to note.trim(),
                 "timestamp" to txDate,
+                "isDeleted" to false,
+                "deleted" to false,
+                "deletedAt" to null,
+                "deletedBy" to null,
                 "createdTimestamp" to FieldValue.serverTimestamp(),
                 "createdByUid" to uid,
                 "createdByName" to performerName
@@ -694,7 +823,89 @@ class KhataRepository(
         }
     }
 
-    suspend fun deleteTransaction(
+    suspend fun softDeleteTransaction(
+        khataId: String,
+        transactionId: String,
+        personId: String,
+        personName: String,
+        amount: Double,
+        performerName: String
+    ): Result<Unit> {
+        return try {
+            val uid = requireUserId()
+            db.collection("khatas").document(khataId).collection("transactions").document(transactionId).update(
+                mapOf(
+                    "isDeleted" to true,
+                    "deleted" to true,
+                    "deletedAt" to FieldValue.serverTimestamp(),
+                    "deletedBy" to performerName,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+
+            // Recomputing automatically ignores soft-deleted transactions!
+            recomputePersonBalances(khataId, personId)
+            recomputeKhataTotals(khataId)
+
+            logHistory(
+                khataId = khataId,
+                actionType = "TRANSACTION_MOVED_TO_TRASH",
+                description = "$performerName moved transaction of ₹$amount for $personName to Trash",
+                amount = amount,
+                personName = personName,
+                performedByUid = uid,
+                performedByName = performerName
+            )
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "khatas/$khataId/transactions/$transactionId")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun recoverTransaction(
+        khataId: String,
+        transactionId: String,
+        personId: String,
+        personName: String,
+        amount: Double,
+        performerName: String
+    ): Result<Unit> {
+        return try {
+            val uid = requireUserId()
+            db.collection("khatas").document(khataId).collection("transactions").document(transactionId).update(
+                mapOf(
+                    "isDeleted" to false,
+                    "deleted" to false,
+                    "deletedAt" to null,
+                    "deletedBy" to null,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+
+            // Restores the transaction back to active balances!
+            recomputePersonBalances(khataId, personId)
+            recomputeKhataTotals(khataId)
+
+            logHistory(
+                khataId = khataId,
+                actionType = "TRANSACTION_RECOVERED",
+                description = "$performerName recovered transaction of ₹$amount for $personName from Trash",
+                amount = amount,
+                personName = personName,
+                performedByUid = uid,
+                performedByName = performerName
+            )
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "khatas/$khataId/transactions/$transactionId")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun permanentlyDeleteTransaction(
         khataId: String,
         transactionId: String,
         personId: String,
@@ -711,8 +922,8 @@ class KhataRepository(
 
             logHistory(
                 khataId = khataId,
-                actionType = "TRANSACTION_DELETED",
-                description = "$performerName deleted transaction of ₹$amount for $personName",
+                actionType = "TRANSACTION_PERMANENTLY_DELETED",
+                description = "$performerName permanently deleted transaction of ₹$amount for $personName",
                 amount = amount,
                 personName = personName,
                 performedByUid = uid,
@@ -724,6 +935,18 @@ class KhataRepository(
             handleFirestoreError(e, OperationType.DELETE, "khatas/$khataId/transactions/$transactionId")
             Result.failure(e)
         }
+    }
+
+    // Default deleteTransaction means soft delete as per specifications
+    suspend fun deleteTransaction(
+        khataId: String,
+        transactionId: String,
+        personId: String,
+        personName: String,
+        amount: Double,
+        performerName: String
+    ): Result<Unit> {
+        return softDeleteTransaction(khataId, transactionId, personId, personName, amount, performerName)
     }
 
     // --- ACCURATE RECOMPUTATION OF BALANCES (INTEGER PAISE ACCURACY) ---
@@ -739,9 +962,15 @@ class KhataRepository(
         var latestTimestamp: Timestamp? = null
 
         for (doc in snapshot.documents) {
+            val isDel = doc.getBoolean("isDeleted") ?: doc.getBoolean("deleted") ?: false
+            if (isDel) continue // Soft-deleted transactions do NOT affect active balances!
+
             val tx = doc.toObject(Transaction::class.java)?.let {
-                if (it.id.isBlank()) it.copy(id = doc.id) else it
+                if (it.id.isBlank()) it.copy(id = doc.id, isDeleted = isDel) else it.copy(isDeleted = isDel)
             } ?: continue
+
+            if (tx.isDeleted) continue
+
             val paise = (tx.amount * 100.0).roundToLong()
             if (tx.type == "LENA") {
                 lenaPaise += paise
@@ -772,14 +1001,21 @@ class KhataRepository(
 
     private suspend fun recomputeKhataTotals(khataId: String) {
         val peopleSnap = db.collection("khatas").document(khataId).collection("people").get().await()
-        var totalPeople = peopleSnap.size().toLong()
+        var totalPeople = 0L
         var khataLenaPaise = 0L
         var khataDenaPaise = 0L
 
         for (doc in peopleSnap.documents) {
+            val isDel = doc.getBoolean("isDeleted") ?: doc.getBoolean("deleted") ?: false
+            if (isDel) continue // Soft-deleted people do NOT count in active totals!
+
             val p = doc.toObject(Person::class.java)?.let {
-                if (it.id.isBlank()) it.copy(id = doc.id) else it
+                if (it.id.isBlank()) it.copy(id = doc.id, isDeleted = isDel) else it.copy(isDeleted = isDel)
             } ?: continue
+
+            if (p.isDeleted) continue
+
+            totalPeople++
             khataLenaPaise += (p.totalLena * 100.0).roundToLong()
             khataDenaPaise += (p.totalDena * 100.0).roundToLong()
         }

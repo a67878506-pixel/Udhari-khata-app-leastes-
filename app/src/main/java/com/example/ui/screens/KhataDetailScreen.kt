@@ -54,23 +54,37 @@ fun KhataDetailScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameValue by remember { mutableStateOf(currentKhata.name) }
     var showDeleteKhataDialog by remember { mutableStateOf(false) }
-    var selectedFilter by remember { mutableStateOf("ALL") } // ALL, LENA, DENA, SETTLED
+    var selectedFilter by remember { mutableStateOf("ALL") } // ALL, LENA, DENA, SETTLED, TRASH
+    var personToRecover by remember { mutableStateOf<Person?>(null) }
+    var personToPermanentlyDelete by remember { mutableStateOf<Person?>(null) }
 
     val people = when (val state = khataState.people) {
-        is UiState.Success -> state.data
+        is UiState.Success -> state.data.filter { !it.isDeleted }
         else -> emptyList()
     }
 
-    val filteredPeople = people.filter { person ->
-        val matchesQuery = person.name.contains(khataState.personSearchQuery, ignoreCase = true) ||
-                person.phone.contains(khataState.personSearchQuery, ignoreCase = true)
-        val matchesFilter = when (selectedFilter) {
-            "LENA" -> person.netBalance > 0
-            "DENA" -> person.netBalance < 0
-            "SETTLED" -> person.netBalance == 0.0
-            else -> true
+    val trashPeople = when (val state = khataState.trashPeople) {
+        is UiState.Success -> state.data.filter { it.isDeleted }
+        else -> emptyList()
+    }
+
+    val filteredPeople = if (selectedFilter == "TRASH") {
+        trashPeople.filter { person ->
+            person.name.contains(khataState.personSearchQuery, ignoreCase = true) ||
+                    person.phone.contains(khataState.personSearchQuery, ignoreCase = true)
         }
-        matchesQuery && matchesFilter
+    } else {
+        people.filter { person ->
+            val matchesQuery = person.name.contains(khataState.personSearchQuery, ignoreCase = true) ||
+                    person.phone.contains(khataState.personSearchQuery, ignoreCase = true)
+            val matchesFilter = when (selectedFilter) {
+                "LENA" -> person.netBalance > 0
+                "DENA" -> person.netBalance < 0
+                "SETTLED" -> person.netBalance == 0.0
+                else -> true
+            }
+            matchesQuery && matchesFilter
+        }
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -238,12 +252,22 @@ fun KhataDetailScreen(
                     label = { Text("Settled") },
                     shape = RoundedCornerShape(10.dp)
                 )
+                FilterChip(
+                    selected = selectedFilter == "TRASH",
+                    onClick = { selectedFilter = "TRASH" },
+                    label = { Text("Trash (${trashPeople.size})") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // People List
-            when (khataState.people) {
+            when (if (selectedFilter == "TRASH") khataState.trashPeople else khataState.people) {
                 is UiState.Loading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -252,27 +276,29 @@ fun KhataDetailScreen(
                 is UiState.Error -> {
                     EmptyStateCard(
                         title = "Error loading people",
-                        subtitle = (khataState.people as UiState.Error).message
+                        subtitle = "Unable to load people records"
                     )
                 }
                 is UiState.Success -> {
                     if (filteredPeople.isEmpty()) {
                         EmptyStateCard(
-                            title = if (khataState.personSearchQuery.isNotEmpty()) "No people match '${khataState.personSearchQuery}'" else "No People in this Khata",
-                            subtitle = if (khataState.personSearchQuery.isNotEmpty()) "Try searching with a different name or phone" else "Add your customers, vendors, friends, or partners to start recording hisaab.",
-                            actionButton = {
-                                Button(
-                                    onClick = {
-                                        newPersonName = ""
-                                        newPersonPhone = ""
-                                        showAddPersonDialog = true
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.testTag("empty_add_person_button")
-                                ) {
-                                    Icon(Icons.Default.PersonAdd, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Add Person", fontWeight = FontWeight.Bold)
+                            title = if (selectedFilter == "TRASH") "Trash is Empty" else if (khataState.personSearchQuery.isNotEmpty()) "No people match '${khataState.personSearchQuery}'" else "No People in this Khata",
+                            subtitle = if (selectedFilter == "TRASH") "Deleted people will be preserved here and can be recovered anytime." else if (khataState.personSearchQuery.isNotEmpty()) "Try searching with a different name or phone" else "Add your customers, vendors, friends, or partners to start recording hisaab.",
+                            actionButton = if (selectedFilter == "TRASH") null else {
+                                {
+                                    Button(
+                                        onClick = {
+                                            newPersonName = ""
+                                            newPersonPhone = ""
+                                            showAddPersonDialog = true
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.testTag("empty_add_person_button")
+                                    ) {
+                                        Icon(Icons.Default.PersonAdd, contentDescription = null)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Add Person", fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         )
@@ -285,13 +311,21 @@ fun KhataDetailScreen(
                             contentPadding = PaddingValues(bottom = 90.dp)
                         ) {
                             items(filteredPeople, key = { it.id }) { person ->
-                                PersonCard(
-                                    person = person,
-                                    onClick = {
-                                        khataViewModel.selectPerson(person)
-                                        onPersonClick(person)
-                                    }
-                                )
+                                if (selectedFilter == "TRASH") {
+                                    DeletedPersonCard(
+                                        person = person,
+                                        onRecover = { personToRecover = person },
+                                        onPermanentDelete = { personToPermanentlyDelete = person }
+                                    )
+                                } else {
+                                    PersonCard(
+                                        person = person,
+                                        onClick = {
+                                            khataViewModel.selectPerson(person)
+                                            onPersonClick(person)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -417,6 +451,36 @@ fun KhataDetailScreen(
             onDismiss = { showDeleteKhataDialog = false }
         )
     }
+
+    // Recover Person Confirmation Dialog
+    if (personToRecover != null) {
+        val p = personToRecover!!
+        AppConfirmationDialog(
+            title = "Recover Person?",
+            message = "Restore '${p.name}' to active customers? All hisaab records and balances will be restored.",
+            confirmButtonText = "Recover",
+            onConfirm = {
+                khataViewModel.recoverPerson(currentKhata.id, p.id, p.name, currentUserName)
+                personToRecover = null
+            },
+            onDismiss = { personToRecover = null }
+        )
+    }
+
+    // Permanently Delete Person Confirmation Dialog
+    if (personToPermanentlyDelete != null) {
+        val p = personToPermanentlyDelete!!
+        AppConfirmationDialog(
+            title = "Permanently Delete Person?",
+            message = "Permanently delete '${p.name}' and all associated transactions? This action CANNOT be undone.",
+            confirmButtonText = "Delete Permanently",
+            onConfirm = {
+                khataViewModel.permanentlyDeletePerson(currentKhata.id, p.id, p.name, currentUserName)
+                personToPermanentlyDelete = null
+            },
+            onDismiss = { personToPermanentlyDelete = null }
+        )
+    }
 }
 
 @Composable
@@ -510,3 +574,119 @@ fun PersonCard(
         }
     }
 }
+
+@Composable
+fun DeletedPersonCard(
+    person: Person,
+    onRecover: () -> Unit,
+    onPermanentDelete: () -> Unit
+) {
+    val finColors = LocalFinancialColors.current
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("deleted_person_card_${person.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    InitialAvatar(
+                        name = person.name,
+                        size = 44.dp
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column {
+                        Text(
+                            text = person.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (person.phone.isNotEmpty()) {
+                            Text(
+                                text = person.phone,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "Deleted by ${person.deletedBy ?: "User"}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                val net = person.netBalance
+                val balanceColor = if (net > 0) finColors.lena else if (net < 0) finColors.dena else MaterialTheme.colorScheme.onSurfaceVariant
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = formatCurrency(abs(net)),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp,
+                        color = balanceColor
+                    )
+                    Text(
+                        text = if (net > 0) "Lena" else if (net < 0) "Dena" else "Settled",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = balanceColor
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onPermanentDelete,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("perm_delete_person_${person.id}")
+                ) {
+                    Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete Permanently", fontSize = 12.sp)
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Button(
+                    onClick = onRecover,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("recover_person_${person.id}")
+                ) {
+                    Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Recover", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+

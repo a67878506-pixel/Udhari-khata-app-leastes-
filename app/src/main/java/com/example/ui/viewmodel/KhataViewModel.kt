@@ -23,9 +23,11 @@ data class KhataUiState(
     val khataSearchQuery: String = "",
     val currentKhata: Khata? = null,
     val people: UiState<List<Person>> = UiState.Loading,
+    val trashPeople: UiState<List<Person>> = UiState.Loading,
     val personSearchQuery: String = "",
     val currentPerson: Person? = null,
     val transactions: UiState<List<Transaction>> = UiState.Loading,
+    val trashTransactions: UiState<List<Transaction>> = UiState.Loading,
     val history: UiState<List<KhataHistory>> = UiState.Loading,
     val incomingShareRequests: UiState<List<ShareRequest>> = UiState.Loading,
     val searchedPartner: UserProfile? = null,
@@ -44,7 +46,9 @@ class KhataViewModel(
     val uiState: StateFlow<KhataUiState> = _uiState.asStateFlow()
 
     private var peopleJob: Job? = null
+    private var trashPeopleJob: Job? = null
     private var transactionsJob: Job? = null
+    private var trashTransactionsJob: Job? = null
     private var historyJob: Job? = null
 
     init {
@@ -56,6 +60,8 @@ class KhataViewModel(
             _uiState.update { it.copy(
                 khatas = UiState.Success(emptyList()),
                 trashKhatas = UiState.Success(emptyList()),
+                trashPeople = UiState.Success(emptyList()),
+                trashTransactions = UiState.Success(emptyList()),
                 incomingShareRequests = UiState.Success(emptyList())
             ) }
         }
@@ -63,10 +69,15 @@ class KhataViewModel(
 
     fun resetState() {
         peopleJob?.cancel()
+        trashPeopleJob?.cancel()
         transactionsJob?.cancel()
+        trashTransactionsJob?.cancel()
         historyJob?.cancel()
         _uiState.value = KhataUiState(
             khatas = UiState.Success(emptyList()),
+            trashKhatas = UiState.Success(emptyList()),
+            trashPeople = UiState.Success(emptyList()),
+            trashTransactions = UiState.Success(emptyList()),
             incomingShareRequests = UiState.Success(emptyList())
         )
     }
@@ -137,10 +148,12 @@ class KhataViewModel(
     fun selectKhata(khata: Khata) {
         _uiState.update { it.copy(currentKhata = khata, personSearchQuery = "") }
         observePeopleForKhata(khata.id)
+        observeTrashPeopleForKhata(khata.id)
+        observeTrashTransactionsForKhata(khata.id)
         observeHistoryForKhata(khata.id)
     }
 
-    private fun observePeopleForKhata(khataId: String) {
+    fun observePeopleForKhata(khataId: String) {
         peopleJob?.cancel()
         peopleJob = viewModelScope.launch {
             _uiState.update { it.copy(people = UiState.Loading) }
@@ -158,6 +171,34 @@ class KhataViewModel(
                             currentPerson = updatedCurrentPerson
                         )
                     }
+                }
+        }
+    }
+
+    fun observeTrashPeopleForKhata(khataId: String) {
+        trashPeopleJob?.cancel()
+        trashPeopleJob = viewModelScope.launch {
+            _uiState.update { it.copy(trashPeople = UiState.Loading) }
+            repository.observeTrashPeople(khataId)
+                .catch { e ->
+                    _uiState.update { it.copy(trashPeople = UiState.Error(e.localizedMessage ?: "Failed to load deleted people")) }
+                }
+                .collect { list ->
+                    _uiState.update { it.copy(trashPeople = UiState.Success(list)) }
+                }
+        }
+    }
+
+    fun observeTrashTransactionsForKhata(khataId: String) {
+        trashTransactionsJob?.cancel()
+        trashTransactionsJob = viewModelScope.launch {
+            _uiState.update { it.copy(trashTransactions = UiState.Loading) }
+            repository.observeTrashTransactions(khataId)
+                .catch { e ->
+                    _uiState.update { it.copy(trashTransactions = UiState.Error(e.localizedMessage ?: "Failed to load deleted hisaab")) }
+                }
+                .collect { list ->
+                    _uiState.update { it.copy(trashTransactions = UiState.Success(list)) }
                 }
         }
     }
@@ -180,6 +221,7 @@ class KhataViewModel(
         _uiState.update { it.copy(currentPerson = person) }
         val khata = _uiState.value.currentKhata ?: return
         observeTransactionsForPerson(khata.id, person.id)
+        observeTrashTransactionsForPerson(khata.id, person.id)
     }
 
     private fun observeTransactionsForPerson(khataId: String, personId: String) {
@@ -192,6 +234,20 @@ class KhataViewModel(
                 }
                 .collect { list ->
                     _uiState.update { it.copy(transactions = UiState.Success(list)) }
+                }
+        }
+    }
+
+    fun observeTrashTransactionsForPerson(khataId: String, personId: String) {
+        trashTransactionsJob?.cancel()
+        trashTransactionsJob = viewModelScope.launch {
+            _uiState.update { it.copy(trashTransactions = UiState.Loading) }
+            repository.observeTrashTransactions(khataId, personId)
+                .catch { e ->
+                    _uiState.update { it.copy(trashTransactions = UiState.Error(e.localizedMessage ?: "Failed to load deleted hisaab")) }
+                }
+                .collect { list ->
+                    _uiState.update { it.copy(trashTransactions = UiState.Success(list)) }
                 }
         }
     }
@@ -342,18 +398,68 @@ class KhataViewModel(
         }
     }
 
-    fun deletePerson(khataId: String, personId: String, personName: String, performerName: String, onDeleted: () -> Unit) {
+    fun softDeletePerson(
+        khataId: String,
+        personId: String,
+        personName: String,
+        performerName: String,
+        onDeleted: () -> Unit = {}
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isActionLoading = true) }
-            val res = repository.deletePerson(khataId, personId, personName, performerName)
+            val res = repository.softDeletePerson(khataId, personId, personName, performerName)
             _uiState.update { it.copy(isActionLoading = false) }
             if (res.isSuccess) {
-                _uiState.update { it.copy(currentPerson = null, actionSuccessMessage = "Person deleted.") }
+                _uiState.update { it.copy(currentPerson = null, actionSuccessMessage = "'$personName' moved to Trash.") }
                 onDeleted()
             } else {
-                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to delete person.") }
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to move person to trash.") }
             }
         }
+    }
+
+    fun recoverPerson(
+        khataId: String,
+        personId: String,
+        personName: String,
+        performerName: String,
+        onRecovered: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true) }
+            val res = repository.recoverPerson(khataId, personId, personName, performerName)
+            _uiState.update { it.copy(isActionLoading = false) }
+            if (res.isSuccess) {
+                _uiState.update { it.copy(actionSuccessMessage = "'$personName' restored successfully.") }
+                onRecovered()
+            } else {
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to recover person.") }
+            }
+        }
+    }
+
+    fun permanentlyDeletePerson(
+        khataId: String,
+        personId: String,
+        personName: String,
+        performerName: String,
+        onDeleted: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true) }
+            val res = repository.permanentlyDeletePerson(khataId, personId, personName, performerName)
+            _uiState.update { it.copy(isActionLoading = false) }
+            if (res.isSuccess) {
+                _uiState.update { it.copy(currentPerson = null, actionSuccessMessage = "'$personName' permanently deleted.") }
+                onDeleted()
+            } else {
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to delete person permanently.") }
+            }
+        }
+    }
+
+    fun deletePerson(khataId: String, personId: String, personName: String, performerName: String, onDeleted: () -> Unit) {
+        softDeletePerson(khataId, personId, personName, performerName, onDeleted)
     }
 
     // --- TRANSACTIONS ACTIONS ---
@@ -418,6 +524,72 @@ class KhataViewModel(
         }
     }
 
+    fun softDeleteTransaction(
+        khataId: String,
+        transactionId: String,
+        personId: String,
+        personName: String,
+        amount: Double,
+        performerName: String,
+        onDeleted: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true) }
+            val res = repository.softDeleteTransaction(khataId, transactionId, personId, personName, amount, performerName)
+            _uiState.update { it.copy(isActionLoading = false) }
+            if (res.isSuccess) {
+                _uiState.update { it.copy(actionSuccessMessage = "Transaction moved to Trash.") }
+                onDeleted()
+            } else {
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to move transaction to trash.") }
+            }
+        }
+    }
+
+    fun recoverTransaction(
+        khataId: String,
+        transactionId: String,
+        personId: String,
+        personName: String,
+        amount: Double,
+        performerName: String,
+        onRecovered: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true) }
+            val res = repository.recoverTransaction(khataId, transactionId, personId, personName, amount, performerName)
+            _uiState.update { it.copy(isActionLoading = false) }
+            if (res.isSuccess) {
+                _uiState.update { it.copy(actionSuccessMessage = "Transaction restored successfully.") }
+                onRecovered()
+            } else {
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to recover transaction.") }
+            }
+        }
+    }
+
+    fun permanentlyDeleteTransaction(
+        khataId: String,
+        transactionId: String,
+        personId: String,
+        personName: String,
+        amount: Double,
+        performerName: String,
+        onDeleted: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true) }
+            val res = repository.permanentlyDeleteTransaction(khataId, transactionId, personId, personName, amount, performerName)
+            _uiState.update { it.copy(isActionLoading = false) }
+            if (res.isSuccess) {
+                _uiState.update { it.copy(actionSuccessMessage = "Transaction permanently deleted.") }
+                onDeleted()
+            } else {
+                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to delete transaction permanently.") }
+            }
+        }
+    }
+
     fun deleteTransaction(
         khataId: String,
         transactionId: String,
@@ -426,16 +598,7 @@ class KhataViewModel(
         amount: Double,
         performerName: String
     ) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isActionLoading = true) }
-            val res = repository.deleteTransaction(khataId, transactionId, personId, personName, amount, performerName)
-            _uiState.update { it.copy(isActionLoading = false) }
-            if (res.isSuccess) {
-                _uiState.update { it.copy(actionSuccessMessage = "Transaction deleted.") }
-            } else {
-                _uiState.update { it.copy(actionErrorMessage = res.exceptionOrNull()?.message ?: "Failed to delete transaction.") }
-            }
-        }
+        softDeleteTransaction(khataId, transactionId, personId, personName, amount, performerName)
     }
 
     // --- PARTNER & SHARING ACTIONS ---

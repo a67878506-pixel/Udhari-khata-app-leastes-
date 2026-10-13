@@ -53,19 +53,19 @@ fun HomeScreen(
     val currentUserName = authState.userProfile?.name ?: "User"
 
     val khatas = when (val state = khataState.khatas) {
-        is UiState.Success -> state.data
+        is UiState.Success -> state.data.filter { !it.isDeleted }
         else -> emptyList()
     }
 
     // Filter by search query and tab filter
     val filteredKhatas = khatas.filter { khata ->
-        val matchesQuery = khata.name.contains(khataState.khataSearchQuery, ignoreCase = true)
-        val matchesFilter = when (selectedFilter) {
+        !khata.isDeleted &&
+        khata.name.contains(khataState.khataSearchQuery, ignoreCase = true) &&
+        when (selectedFilter) {
             "OWNED" -> khata.ownerUid == currentUid
             "SHARED" -> khata.ownerUid != currentUid
             else -> true
         }
-        matchesQuery && matchesFilter
     }
 
     // Overall balances across all accessible khatas

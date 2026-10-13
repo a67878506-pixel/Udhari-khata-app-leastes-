@@ -2,6 +2,7 @@ package com.example.data.model
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.IgnoreExtraProperties
+import com.google.firebase.firestore.PropertyName
 import com.google.firebase.firestore.ServerTimestamp
 
 @IgnoreExtraProperties
@@ -39,7 +40,9 @@ data class Khata(
     val totalLena: Double = 0.0,
     val totalDena: Double = 0.0,
     val netBalance: Double = 0.0,
-    val isDeleted: Boolean = false,
+    @get:PropertyName("isDeleted")
+    @set:PropertyName("isDeleted")
+    var isDeleted: Boolean = false,
     val deletedAt: Timestamp? = null,
     val deletedBy: String? = null,
     @ServerTimestamp val createdAt: Timestamp? = null,
@@ -55,6 +58,11 @@ data class Person(
     val totalLena: Double = 0.0,
     val totalDena: Double = 0.0,
     val netBalance: Double = 0.0,
+    @get:PropertyName("isDeleted")
+    @set:PropertyName("isDeleted")
+    var isDeleted: Boolean = false,
+    val deletedAt: Timestamp? = null,
+    val deletedBy: String? = null,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null,
     val lastTransactionAt: Timestamp? = null
@@ -70,6 +78,11 @@ data class Transaction(
     val type: String = "LENA", // "LENA" (You gave / You will receive) or "DENA" (You got / You will pay)
     val note: String = "",
     val timestamp: Timestamp? = null,
+    @get:PropertyName("isDeleted")
+    @set:PropertyName("isDeleted")
+    var isDeleted: Boolean = false,
+    val deletedAt: Timestamp? = null,
+    val deletedBy: String? = null,
     @ServerTimestamp val createdTimestamp: Timestamp? = null,
     val createdByUid: String = "",
     val createdByName: String = "",

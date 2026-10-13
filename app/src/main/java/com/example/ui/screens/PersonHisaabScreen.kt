@@ -49,6 +49,9 @@ fun PersonHisaabScreen(
     var selectedTxType by remember { mutableStateOf("LENA") } // LENA or DENA
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var deletingTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var selectedTxTab by remember { mutableStateOf("ACTIVE") } // ACTIVE or TRASH
+    var txToRecover by remember { mutableStateOf<Transaction?>(null) }
+    var txToPermanentlyDelete by remember { mutableStateOf<Transaction?>(null) }
 
     var showEditPersonDialog by remember { mutableStateOf(false) }
     var editPersonName by remember { mutableStateOf(currentPerson.name) }
@@ -57,7 +60,12 @@ fun PersonHisaabScreen(
     var showPersonMenu by remember { mutableStateOf(false) }
 
     val transactions = when (val state = khataState.transactions) {
-        is UiState.Success -> state.data
+        is UiState.Success -> state.data.filter { !it.isDeleted }
+        else -> emptyList()
+    }
+
+    val trashTransactions = when (val state = khataState.trashTransactions) {
+        is UiState.Success -> state.data.filter { it.isDeleted }
         else -> emptyList()
     }
 
@@ -292,26 +300,36 @@ fun PersonHisaabScreen(
                 }
             }
 
-            // Transaction History Title
+            // Transaction History Tabs
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "TRANSACTION ENTRIES (${transactions.size})",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                FilterChip(
+                    selected = selectedTxTab == "ACTIVE",
+                    onClick = { selectedTxTab = "ACTIVE" },
+                    label = { Text("Active (${transactions.size})") },
+                    shape = RoundedCornerShape(10.dp)
+                )
+                FilterChip(
+                    selected = selectedTxTab == "TRASH",
+                    onClick = { selectedTxTab = "TRASH" },
+                    label = { Text("Trash (${trashTransactions.size})") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer
+                    ),
+                    shape = RoundedCornerShape(10.dp)
                 )
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
             // Transactions List
-            when (khataState.transactions) {
+            when (if (selectedTxTab == "TRASH") khataState.trashTransactions else khataState.transactions) {
                 is UiState.Loading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -320,14 +338,15 @@ fun PersonHisaabScreen(
                 is UiState.Error -> {
                     EmptyStateCard(
                         title = "Error loading transactions",
-                        subtitle = (khataState.transactions as UiState.Error).message
+                        subtitle = "Unable to load transactions"
                     )
                 }
                 is UiState.Success -> {
-                    if (transactions.isEmpty()) {
+                    val currentList = if (selectedTxTab == "TRASH") trashTransactions else transactions
+                    if (currentList.isEmpty()) {
                         EmptyStateCard(
-                            title = "No Transactions Yet",
-                            subtitle = "Use the green and red buttons below to record when you give money or receive money from ${currentPerson.name}."
+                            title = if (selectedTxTab == "TRASH") "Trash is Empty" else "No Transactions Yet",
+                            subtitle = if (selectedTxTab == "TRASH") "Deleted transactions are stored here safely and can be recovered." else "Use the green and red buttons below to record when you give money or receive money from ${currentPerson.name}."
                         )
                     } else {
                         LazyColumn(
@@ -337,12 +356,20 @@ fun PersonHisaabScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 16.dp)
                         ) {
-                            items(transactions, key = { it.id }) { tx ->
-                                TransactionItemCard(
-                                    transaction = tx,
-                                    onEdit = { editingTransaction = tx },
-                                    onDelete = { deletingTransaction = tx }
-                                )
+                            items(currentList, key = { it.id }) { tx ->
+                                if (selectedTxTab == "TRASH") {
+                                    DeletedTransactionItemCard(
+                                        transaction = tx,
+                                        onRecover = { txToRecover = tx },
+                                        onPermanentDelete = { txToPermanentlyDelete = tx }
+                                    )
+                                } else {
+                                    TransactionItemCard(
+                                        transaction = tx,
+                                        onEdit = { editingTransaction = tx },
+                                        onDelete = { deletingTransaction = tx }
+                                    )
+                                }
                             }
                         }
                     }
@@ -395,14 +422,14 @@ fun PersonHisaabScreen(
         )
     }
 
-    // Delete Transaction Dialog
+    // Move Transaction to Trash Dialog
     deletingTransaction?.let { tx ->
         AppConfirmationDialog(
-            title = "Delete Transaction?",
-            message = "Are you sure you want to delete this transaction of ${formatCurrency(tx.amount)}? The balances will automatically update.",
-            confirmButtonText = "Delete",
+            title = "Move Transaction to Trash?",
+            message = "Move this transaction of ${formatCurrency(tx.amount)} to Trash? Balances will immediately recalculate without it, and you can recover it anytime.",
+            confirmButtonText = "Move to Trash",
             onConfirm = {
-                khataViewModel.deleteTransaction(
+                khataViewModel.softDeleteTransaction(
                     khataId = currentKhata.id,
                     transactionId = tx.id,
                     personId = currentPerson.id,
@@ -413,6 +440,48 @@ fun PersonHisaabScreen(
                 deletingTransaction = null
             },
             onDismiss = { deletingTransaction = null }
+        )
+    }
+
+    // Recover Transaction Dialog
+    txToRecover?.let { tx ->
+        AppConfirmationDialog(
+            title = "Recover Transaction?",
+            message = "Restore this transaction of ${formatCurrency(tx.amount)}? The balance will immediately recalculate to include it.",
+            confirmButtonText = "Recover",
+            onConfirm = {
+                khataViewModel.recoverTransaction(
+                    khataId = currentKhata.id,
+                    transactionId = tx.id,
+                    personId = currentPerson.id,
+                    personName = currentPerson.name,
+                    amount = tx.amount,
+                    performerName = currentUserName
+                )
+                txToRecover = null
+            },
+            onDismiss = { txToRecover = null }
+        )
+    }
+
+    // Permanently Delete Transaction Dialog
+    txToPermanentlyDelete?.let { tx ->
+        AppConfirmationDialog(
+            title = "Permanently Delete Transaction?",
+            message = "Permanently delete this transaction of ${formatCurrency(tx.amount)}? This action CANNOT be undone.",
+            confirmButtonText = "Delete Permanently",
+            onConfirm = {
+                khataViewModel.permanentlyDeleteTransaction(
+                    khataId = currentKhata.id,
+                    transactionId = tx.id,
+                    personId = currentPerson.id,
+                    personName = currentPerson.name,
+                    amount = tx.amount,
+                    performerName = currentUserName
+                )
+                txToPermanentlyDelete = null
+            },
+            onDismiss = { txToPermanentlyDelete = null }
         )
     }
 
@@ -479,12 +548,12 @@ fun PersonHisaabScreen(
     // Delete Person Confirmation Dialog
     if (showDeletePersonDialog) {
         AppConfirmationDialog(
-            title = "Delete Person?",
-            message = "Are you sure you want to delete '${currentPerson.name}'? This will permanently delete all ${transactions.size} transactions for this person.",
-            confirmButtonText = "Delete Person",
+            title = "Move Person to Trash?",
+            message = "Move '${currentPerson.name}' to Trash? This person and their hisaab will disappear from active views, but records are safely preserved in Trash and can be recovered anytime.",
+            confirmButtonText = "Move to Trash",
             onConfirm = {
                 showDeletePersonDialog = false
-                khataViewModel.deletePerson(
+                khataViewModel.softDeletePerson(
                     khataId = currentKhata.id,
                     personId = currentPerson.id,
                     personName = currentPerson.name,
@@ -765,3 +834,112 @@ fun TransactionInputDialog(
         }
     )
 }
+
+@Composable
+fun DeletedTransactionItemCard(
+    transaction: Transaction,
+    onRecover: () -> Unit,
+    onPermanentDelete: () -> Unit
+) {
+    val finColors = LocalFinancialColors.current
+    val isLena = transaction.type == "LENA"
+    val typeColor = if (isLena) finColors.lena else finColors.dena
+    val typeBg = if (isLena) finColors.lenaContainer else finColors.denaContainer
+    val typeText = if (isLena) "Maine Diye (Lena)" else "Maine Liye (Dena)"
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("deleted_transaction_card_${transaction.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = typeBg
+                    ) {
+                        Text(
+                            text = typeText,
+                            color = typeColor,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = formatDateTime(transaction.timestamp?.toDate()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Text(
+                    text = "${if (isLena) "+" else "-"} ${formatCurrency(transaction.amount)}",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 17.sp,
+                    color = typeColor
+                )
+            }
+
+            if (transaction.note.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = transaction.note,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "In Trash • Deleted by ${transaction.deletedBy ?: "User"}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onPermanentDelete,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("perm_delete_tx_${transaction.id}")
+                ) {
+                    Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete Permanently", fontSize = 12.sp)
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Button(
+                    onClick = onRecover,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("recover_tx_${transaction.id}")
+                ) {
+                    Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Recover", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+

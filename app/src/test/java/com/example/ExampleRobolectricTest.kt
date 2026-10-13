@@ -118,4 +118,104 @@ class ExampleRobolectricTest {
         val userRecord = com.example.data.model.UsernameRecord(customUserId = "anshul47957", uid = "uid_1")
         assertEquals("anshul47957", userRecord.customUserId)
     }
+
+    @Test
+    fun `test Khata soft delete state and filtering`() {
+        val activeKhata = com.example.data.model.Khata(id = "k1", name = "Shop", isDeleted = false)
+        val deletedKhata = com.example.data.model.Khata(
+            id = "k2",
+            name = "Old Shop",
+            isDeleted = true,
+            deletedAt = com.google.firebase.Timestamp.now(),
+            deletedBy = "user_1"
+        )
+
+        val allKhatas = listOf(activeKhata, deletedKhata)
+        val activeOnly = allKhatas.filter { !it.isDeleted }
+        val trashOnly = allKhatas.filter { it.isDeleted }
+
+        assertEquals(1, activeOnly.size)
+        assertEquals("k1", activeOnly[0].id)
+        assertEquals(1, trashOnly.size)
+        assertEquals("k2", trashOnly[0].id)
+        assertEquals(true, trashOnly[0].isDeleted)
+        assertEquals("user_1", trashOnly[0].deletedBy)
+    }
+
+    @Test
+    fun `test Person soft delete state and filtering`() {
+        val activePerson = com.example.data.model.Person(id = "p1", name = "Ramesh", isDeleted = false)
+        val deletedPerson = com.example.data.model.Person(
+            id = "p2",
+            name = "Suresh",
+            isDeleted = true,
+            deletedAt = com.google.firebase.Timestamp.now(),
+            deletedBy = "Anshul"
+        )
+
+        val allPeople = listOf(activePerson, deletedPerson)
+        val activeList = allPeople.filter { !it.isDeleted }
+        val trashList = allPeople.filter { it.isDeleted }
+
+        assertEquals(1, activeList.size)
+        assertEquals("p1", activeList[0].id)
+        assertEquals(1, trashList.size)
+        assertEquals("p2", trashList[0].id)
+        assertEquals(true, trashList[0].isDeleted)
+        assertEquals("Anshul", trashList[0].deletedBy)
+    }
+
+    @Test
+    fun `test Transaction soft delete state, filtering, and balance recalculation`() {
+        val tx1 = com.example.data.model.Transaction(
+            id = "t1",
+            amount = 100.50,
+            type = "LENA",
+            isDeleted = false
+        )
+        val tx2 = com.example.data.model.Transaction(
+            id = "t2",
+            amount = 40.25,
+            type = "DENA",
+            isDeleted = false
+        )
+        val tx3Deleted = com.example.data.model.Transaction(
+            id = "t3",
+            amount = 50.00,
+            type = "LENA",
+            isDeleted = true,
+            deletedBy = "User"
+        )
+
+        val allTxs = listOf(tx1, tx2, tx3Deleted)
+        val activeTxs = allTxs.filter { !it.isDeleted }
+        val trashTxs = allTxs.filter { it.isDeleted }
+
+        assertEquals(2, activeTxs.size)
+        assertEquals(1, trashTxs.size)
+        assertEquals("t3", trashTxs[0].id)
+
+        // Calculate balances using only active transactions (integer paise accuracy)
+        var lenaPaise = 0L
+        var denaPaise = 0L
+        for (tx in activeTxs) {
+            val paise = kotlin.math.round((tx.amount * 100.0)).toLong()
+            if (tx.type == "LENA") lenaPaise += paise else denaPaise += paise
+        }
+
+        val netBalance = (lenaPaise - denaPaise) / 100.0
+        assertEquals(60.25, netBalance, 0.001)
+
+        // When tx3 is recovered, balance recalculates to include it
+        val recoveredTx3 = tx3Deleted.copy(isDeleted = false, deletedAt = null, deletedBy = null)
+        val updatedActiveTxs = listOf(tx1, tx2, recoveredTx3)
+        var newLenaPaise = 0L
+        var newDenaPaise = 0L
+        for (tx in updatedActiveTxs) {
+            val paise = kotlin.math.round((tx.amount * 100.0)).toLong()
+            if (tx.type == "LENA") newLenaPaise += paise else newDenaPaise += paise
+        }
+        val restoredNetBalance = (newLenaPaise - newDenaPaise) / 100.0
+        assertEquals(110.25, restoredNetBalance, 0.001)
+    }
 }
