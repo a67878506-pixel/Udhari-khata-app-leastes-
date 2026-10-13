@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "593866417403",
+    "project_id": "udhari-khata-2822b",
+    "storage_bucket": "udhari-khata-2822b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:593866417403:android:0f0b29ee3bdc863907bc5e",
+        "android_client_info": {
+          "package_name": "com.udhaarkhata.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPqAiSIVdWYspSm3C4L7lZNEo4nh_g9DE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
