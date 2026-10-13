@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -21,11 +21,11 @@ import com.example.ui.components.AppConfirmationDialog
 import com.example.ui.components.EmptyStateCard
 import com.example.ui.components.formatCurrency
 import com.example.ui.components.formatDateTime
-import com.example.ui.theme.GreenLena
-import com.example.ui.theme.RedDena
+import com.example.ui.theme.LocalFinancialColors
 import com.example.ui.viewmodel.AuthViewModel
 import com.example.ui.viewmodel.KhataViewModel
 import com.example.ui.viewmodel.UiState
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,7 +70,7 @@ fun TrashScreen(
                         Text(
                             text = "${trashKhatas.size} Deleted Khatas",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
                         )
                     }
                 },
@@ -94,23 +94,23 @@ fun TrashScreen(
         ) {
             // Notice Card
             Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         Icons.Default.Info,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "Deleted khatas remain safely preserved with all customers and hisaab records. You can recover them anytime or delete them permanently.",
                         style = MaterialTheme.typography.bodySmall,
@@ -122,7 +122,7 @@ fun TrashScreen(
             when (khataState.trashKhatas) {
                 is UiState.Loading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 is UiState.Error -> {
@@ -170,6 +170,7 @@ fun TrashScreen(
             title = "Recover Khata?",
             message = "Do you want to restore '${khata.name}'? It will immediately return to your Home Khatas list with all people and transactions intact.",
             confirmButtonText = "Recover",
+            isDestructive = false,
             onConfirm = {
                 khataViewModel.recoverKhata(khata.id, currentUserName)
                 khataToRecover = null
@@ -184,6 +185,7 @@ fun TrashScreen(
             title = "Permanently Delete '${khata.name}'?",
             message = "WARNING: This action is permanent and IRREVERSIBLE. All associated people, transactions, and history will be completely erased. Are you sure you want to proceed?",
             confirmButtonText = "Permanently Delete",
+            isDestructive = true,
             onConfirm = {
                 khataViewModel.permanentlyDeleteKhata(khata.id)
                 khataToPermanentlyDelete = null
@@ -199,12 +201,15 @@ fun TrashKhataCard(
     onRecover: () -> Unit,
     onPermanentDelete: () -> Unit
 ) {
+    val finColors = LocalFinancialColors.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("trash_khata_card_${khata.id}"),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.5f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -217,12 +222,18 @@ fun TrashKhataCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        Icons.Default.DeleteSweep,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.DeleteSweep,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = khata.name,
@@ -263,9 +274,9 @@ fun TrashKhataCard(
 
                 val net = khata.netBalance
                 val netLabel = if (net > 0) "Lena" else if (net < 0) "Dena" else "Settled"
-                val netColor = if (net > 0) GreenLena else if (net < 0) RedDena else Color.Gray
+                val netColor = if (net > 0) finColors.lena else if (net < 0) finColors.dena else MaterialTheme.colorScheme.onSurfaceVariant
                 Text(
-                    text = "$netLabel: ${formatCurrency(kotlin.math.abs(net))}",
+                    text = "$netLabel: ${formatCurrency(abs(net))}",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     color = netColor
@@ -295,7 +306,7 @@ fun TrashKhataCard(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Divider(color = finColors.cardBorder.copy(alpha = 0.4f))
             Spacer(modifier = Modifier.height(8.dp))
 
             // Action Buttons: Recover & Permanent Delete
@@ -311,7 +322,7 @@ fun TrashKhataCard(
                 ) {
                     Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Permanent Delete")
+                    Text("Permanent Delete", fontWeight = FontWeight.SemiBold)
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -319,11 +330,12 @@ fun TrashKhataCard(
                 Button(
                     onClick = onRecover,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.testTag("recover_button_${khata.id}")
                 ) {
                     Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Recover")
+                    Text("Recover", fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +28,7 @@ import com.example.ui.theme.*
 import com.example.ui.viewmodel.AuthViewModel
 import com.example.ui.viewmodel.KhataViewModel
 import com.example.ui.viewmodel.UiState
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +39,7 @@ fun PersonHisaabScreen(
 ) {
     val khataState by khataViewModel.uiState.collectAsState()
     val authState by authViewModel.uiState.collectAsState()
+    val finColors = LocalFinancialColors.current
 
     val currentKhata = khataState.currentKhata ?: return
     val currentPerson = khataState.currentPerson ?: return
@@ -75,14 +79,23 @@ fun PersonHisaabScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(currentPerson.name, fontWeight = FontWeight.Bold)
-                        if (currentPerson.phone.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        InitialAvatar(name = currentPerson.name, size = 38.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
                             Text(
-                                text = currentPerson.phone,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                text = currentPerson.name,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
+                            if (currentPerson.phone.isNotEmpty()) {
+                                Text(
+                                    text = currentPerson.phone,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                                )
+                            }
                         }
                     }
                 },
@@ -132,7 +145,8 @@ fun PersonHisaabScreen(
             Surface(
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp,
-                color = MaterialTheme.colorScheme.surface
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.navigationBarsPadding()
             ) {
                 Row(
                     modifier = Modifier
@@ -147,18 +161,19 @@ fun PersonHisaabScreen(
                             editingTransaction = null
                             showAddTxDialog = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GreenLena),
-                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = finColors.lena),
+                        shape = RoundedCornerShape(14.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp)
+                            .height(54.dp)
                             .testTag("button_gave_lena")
                     ) {
                         Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(6.dp))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("MAINE DIYE", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Color.White)
-                            Text("(Lena Hai)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.9f))
+                            Text("(Aapko Lena Hai)", fontSize = 10.sp, color = Color.White.copy(alpha = 0.9f))
                         }
                     }
 
@@ -169,18 +184,19 @@ fun PersonHisaabScreen(
                             editingTransaction = null
                             showAddTxDialog = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = RedDena),
-                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = finColors.dena),
+                        shape = RoundedCornerShape(14.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp)
+                            .height(54.dp)
                             .testTag("button_got_dena")
                     ) {
                         Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(6.dp))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("MAINE LIYE", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Color.White)
-                            Text("(Dena Hai)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.9f))
+                            Text("(Aapko Dena Hai)", fontSize = 10.sp, color = Color.White.copy(alpha = 0.9f))
                         }
                     }
                 }
@@ -197,35 +213,47 @@ fun PersonHisaabScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.6f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     val net = currentPerson.netBalance
-                    val netLabel = if (net > 0) "You will get (Lena Hai)" else if (net < 0) "You will give (Dena Hai)" else "Settled (Hisaab Chukta)"
-                    val netColor = if (net > 0) GreenLena else if (net < 0) RedDena else Color.Gray
+                    val netLabel = if (net > 0) "Aapko Milenge (Lena Hai)" else if (net < 0) "Aapko Dene Hain (Dena Hai)" else "Hisaab Barabar (Settled)"
+                    val netColor = if (net > 0) finColors.lena else if (net < 0) finColors.dena else MaterialTheme.colorScheme.onSurfaceVariant
+                    val netBg = if (net > 0) finColors.lenaContainer else if (net < 0) finColors.denaContainer else MaterialTheme.colorScheme.surfaceVariant
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = netBg
+                    ) {
+                        Text(
+                            text = netLabel,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = netColor,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = netLabel,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = netColor
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = formatCurrency(kotlin.math.abs(net)),
-                        style = MaterialTheme.typography.headlineMedium,
+                        text = formatCurrency(abs(net)),
+                        style = MaterialTheme.typography.displayLarge,
                         fontWeight = FontWeight.ExtraBold,
-                        color = netColor
+                        color = netColor,
+                        fontSize = 32.sp
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Divider(color = finColors.cardBorder.copy(alpha = 0.5f))
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Row(
@@ -233,12 +261,32 @@ fun PersonHisaabScreen(
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Total Given (Lena)", style = MaterialTheme.typography.labelSmall, color = OnGreenLenaContainer)
-                            Text(formatCurrency(currentPerson.totalLena), fontWeight = FontWeight.Bold, color = GreenLena)
+                            Text(
+                                text = "Total Given (Maine Diye)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = finColors.onLenaContainer
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = formatCurrency(currentPerson.totalLena),
+                                fontWeight = FontWeight.ExtraBold,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = finColors.lena
+                            )
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Total Received (Dena)", style = MaterialTheme.typography.labelSmall, color = OnRedDenaContainer)
-                            Text(formatCurrency(currentPerson.totalDena), fontWeight = FontWeight.Bold, color = RedDena)
+                            Text(
+                                text = "Total Received (Maine Liye)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = finColors.onDenaContainer
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = formatCurrency(currentPerson.totalDena),
+                                fontWeight = FontWeight.ExtraBold,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = finColors.dena
+                            )
                         }
                     }
                 }
@@ -253,18 +301,20 @@ fun PersonHisaabScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "TRANSACTION HISTORY (${transactions.size})",
+                    text = "TRANSACTION ENTRIES (${transactions.size})",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
+            Spacer(modifier = Modifier.height(4.dp))
+
             // Transactions List
             when (khataState.transactions) {
                 is UiState.Loading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 is UiState.Error -> {
@@ -277,14 +327,14 @@ fun PersonHisaabScreen(
                     if (transactions.isEmpty()) {
                         EmptyStateCard(
                             title = "No Transactions Yet",
-                            subtitle = "Use the buttons below to record when you give money or receive money from ${currentPerson.name}."
+                            subtitle = "Use the green and red buttons below to record when you give money or receive money from ${currentPerson.name}."
                         )
                     } else {
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 16.dp)
                         ) {
                             items(transactions, key = { it.id }) { tx ->
@@ -370,14 +420,16 @@ fun PersonHisaabScreen(
     if (showEditPersonDialog) {
         AlertDialog(
             onDismissRequest = { showEditPersonDialog = false },
-            title = { Text("Edit Person Details") },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Edit Person Details", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = editPersonName,
                         onValueChange = { editPersonName = it },
-                        label = { Text("Name") },
+                        label = { Text("Name *") },
                         singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth().testTag("edit_person_name_input")
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -387,6 +439,7 @@ fun PersonHisaabScreen(
                         label = { Text("Phone Number") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth().testTag("edit_person_phone_input")
                     )
                 }
@@ -406,14 +459,18 @@ fun PersonHisaabScreen(
                             )
                         }
                     },
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.testTag("save_edit_person_button")
                 ) {
-                    Text("Save")
+                    Text("Save", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditPersonDialog = false }) {
-                    Text("Cancel")
+                TextButton(
+                    onClick = { showEditPersonDialog = false },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.SemiBold)
                 }
             }
         )
@@ -446,17 +503,19 @@ fun TransactionItemCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val finColors = LocalFinancialColors.current
     val isLena = transaction.type == "LENA"
-    val typeColor = if (isLena) GreenLena else RedDena
-    val typeBg = if (isLena) GreenLenaContainer else RedDenaContainer
+    val typeColor = if (isLena) finColors.lena else finColors.dena
+    val typeBg = if (isLena) finColors.lenaContainer else finColors.denaContainer
     val typeText = if (isLena) "Maine Diye (Lena)" else "Maine Liye (Dena)"
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("transaction_card_${transaction.id}"),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.45f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -468,16 +527,27 @@ fun TransactionItemCard(
                 // Type badge & Date
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = typeBg
                     ) {
-                        Text(
-                            text = typeText,
-                            color = typeColor,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isLena) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                contentDescription = null,
+                                tint = typeColor,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = typeText,
+                                color = typeColor,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -498,15 +568,22 @@ fun TransactionItemCard(
 
             if (transaction.note.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = transaction.note,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = transaction.note,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(10.dp))
+            Divider(color = finColors.cardBorder.copy(alpha = 0.35f))
             Spacer(modifier = Modifier.height(6.dp))
 
             // Footer: Performed by user & Actions
@@ -533,14 +610,14 @@ fun TransactionItemCard(
                 Row {
                     IconButton(
                         onClick = onEdit,
-                        modifier = Modifier.size(28.dp).testTag("edit_tx_${transaction.id}")
+                        modifier = Modifier.size(32.dp).testTag("edit_tx_${transaction.id}")
                     ) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(16.dp))
                     }
                     Spacer(modifier = Modifier.width(4.dp))
                     IconButton(
                         onClick = onDelete,
-                        modifier = Modifier.size(28.dp).testTag("delete_tx_${transaction.id}")
+                        modifier = Modifier.size(32.dp).testTag("delete_tx_${transaction.id}")
                     ) {
                         Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                     }
@@ -560,15 +637,20 @@ fun TransactionInputDialog(
     onDismiss: () -> Unit,
     onSave: (amount: Double, type: String, note: String, dateMillis: Long) -> Unit
 ) {
+    val finColors = LocalFinancialColors.current
     var amountText by remember { mutableStateOf(if (initialAmount > 0) initialAmount.toString() else "") }
     var txType by remember { mutableStateOf(initialType) }
     var note by remember { mutableStateOf(initialNote) }
-    var isQuickIncrease by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
         title = {
-            Text(if (isEditing) "Edit Transaction" else "Add Transaction", fontWeight = FontWeight.Bold)
+            Text(
+                text = if (isEditing) "Edit Transaction" else "Add Transaction Entry",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge
+            )
         },
         text = {
             Column {
@@ -580,26 +662,28 @@ fun TransactionInputDialog(
                     FilterChip(
                         selected = txType == "LENA",
                         onClick = { txType = "LENA" },
-                        label = { Text("Maine Diye (Lena)") },
+                        label = { Text("Maine Diye (Lena)", fontWeight = FontWeight.Bold) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = GreenLenaContainer,
-                            selectedLabelColor = GreenLena
+                            selectedContainerColor = finColors.lenaContainer,
+                            selectedLabelColor = finColors.lena
                         ),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f).testTag("type_lena_chip")
                     )
                     FilterChip(
                         selected = txType == "DENA",
                         onClick = { txType = "DENA" },
-                        label = { Text("Maine Liye (Dena)") },
+                        label = { Text("Maine Liye (Dena)", fontWeight = FontWeight.Bold) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = RedDenaContainer,
-                            selectedLabelColor = RedDena
+                            selectedContainerColor = finColors.denaContainer,
+                            selectedLabelColor = finColors.dena
                         ),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f).testTag("type_dena_chip")
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Amount input
                 OutlinedTextField(
@@ -607,14 +691,22 @@ fun TransactionInputDialog(
                     onValueChange = { amountText = it },
                     label = { Text("Amount (₹) *") },
                     placeholder = { Text("0.00") },
-                    leadingIcon = { Text("₹", fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp)) },
+                    leadingIcon = {
+                        Text(
+                            text = "₹",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 14.dp)
+                        )
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("tx_amount_input"),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("tx_amount_input")
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Quick amount chips (+100, +500, +1000, +2000)
                 Row(
@@ -627,12 +719,13 @@ fun TransactionInputDialog(
                                 val cur = amountText.toDoubleOrNull() ?: 0.0
                                 amountText = (cur + quickVal).toString()
                             },
+                            shape = RoundedCornerShape(8.dp),
                             label = { Text("+₹$quickVal", style = MaterialTheme.typography.labelSmall) }
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Note input
                 OutlinedTextField(
@@ -642,8 +735,8 @@ fun TransactionInputDialog(
                     placeholder = { Text("e.g. Rice & Flour purchase, Bill payment") },
                     singleLine = false,
                     maxLines = 3,
-                    modifier = Modifier.fillMaxWidth().testTag("tx_note_input"),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("tx_note_input")
                 )
             }
         },
@@ -655,15 +748,19 @@ fun TransactionInputDialog(
                         onSave(amt, txType, note.trim(), initialDateMillis)
                     }
                 },
+                shape = RoundedCornerShape(12.dp),
                 enabled = (amountText.toDoubleOrNull() ?: 0.0) > 0,
                 modifier = Modifier.testTag("save_transaction_button")
             ) {
-                Text(if (isEditing) "Update" else "Save")
+                Text(if (isEditing) "Update" else "Save Entry", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            TextButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Cancel", fontWeight = FontWeight.SemiBold)
             }
         }
     )

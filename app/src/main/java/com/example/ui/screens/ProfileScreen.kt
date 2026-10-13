@@ -1,8 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -11,12 +11,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.AppConfirmationDialog
+import com.example.ui.components.InitialAvatar
+import com.example.ui.theme.LocalFinancialColors
 import com.example.ui.viewmodel.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,6 +28,7 @@ fun ProfileScreen(
     onLoggedOut: () -> Unit
 ) {
     val authState by authViewModel.uiState.collectAsState()
+    val finColors = LocalFinancialColors.current
     val profile = authState.userProfile
     val user = authState.currentUser
 
@@ -73,47 +75,48 @@ fun ProfileScreen(
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(10.dp))
+
             // Profile Avatar
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(90.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = profile?.name?.take(1)?.uppercase() ?: "U",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
+            InitialAvatar(
+                name = profile?.name ?: "User",
+                size = 88.dp
+            )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = profile?.name ?: "Loading...",
+                text = profile?.name ?: "User",
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onBackground
             )
 
-            Text(
-                text = "@${profile?.customUserId ?: ""}",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    text = "@${profile?.customUserId ?: ""}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // Information Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.5f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(18.dp)) {
                     // Full Name Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -122,6 +125,7 @@ fun ProfileScreen(
                     ) {
                         Column {
                             Text("Full Name", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(profile?.name ?: "", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                         }
                         IconButton(
@@ -131,11 +135,11 @@ fun ProfileScreen(
                             },
                             modifier = Modifier.testTag("edit_profile_name_button")
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit Name")
+                            Icon(Icons.Default.Edit, contentDescription = "Edit Name", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
 
-                    Divider(modifier = Modifier.padding(vertical = 12.dp))
+                    Divider(modifier = Modifier.padding(vertical = 12.dp), color = finColors.cardBorder.copy(alpha = 0.4f))
 
                     // Unique User ID Row
                     Column {
@@ -154,40 +158,71 @@ fun ProfileScreen(
                                 )
                             }
                         }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text("@${profile?.customUserId ?: ""}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text("@${profile?.customUserId ?: ""}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                         Text(
                             text = "Other registered users search this ID to share specific khatas with you.",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
-                    Divider(modifier = Modifier.padding(vertical = 12.dp))
+                    Divider(modifier = Modifier.padding(vertical = 12.dp), color = finColors.cardBorder.copy(alpha = 0.4f))
 
                     // Email Row
                     Column {
                         Text("Email Address", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(user?.email ?: (profile?.email ?: ""), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Trust / App Info Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.VerifiedUser,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Udhaar Khata Digital Ledger", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                        Text("Private, secured with Google Cloud Firestore", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Logout Button
             Button(
                 onClick = { showLogoutDialog = true },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(52.dp)
                     .testTag("logout_button"),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Icon(Icons.Default.Logout, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Log Out", fontWeight = FontWeight.Bold)
+                Text("Log Out", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
     }
@@ -196,13 +231,15 @@ fun ProfileScreen(
     if (showEditNameDialog) {
         AlertDialog(
             onDismissRequest = { showEditNameDialog = false },
-            title = { Text("Edit Name") },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Edit Full Name", fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
                     value = editNameValue,
                     onValueChange = { editNameValue = it },
                     label = { Text("Full Name") },
                     singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth().testTag("edit_name_input")
                 )
             },
@@ -214,14 +251,18 @@ fun ProfileScreen(
                             authViewModel.updateName(editNameValue.trim())
                         }
                     },
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.testTag("save_name_button")
                 ) {
-                    Text("Save")
+                    Text("Save", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditNameDialog = false }) {
-                    Text("Cancel")
+                TextButton(
+                    onClick = { showEditNameDialog = false },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.SemiBold)
                 }
             }
         )
@@ -233,6 +274,7 @@ fun ProfileScreen(
             title = "Log Out?",
             message = "Are you sure you want to log out of your Udhaar Khata account?",
             confirmButtonText = "Log Out",
+            isDestructive = true,
             onConfirm = {
                 showLogoutDialog = false
                 authViewModel.signOut()

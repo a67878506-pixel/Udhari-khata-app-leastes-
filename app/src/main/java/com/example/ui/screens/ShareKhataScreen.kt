@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,8 +21,8 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.ShareRequest
 import com.example.ui.components.AppConfirmationDialog
 import com.example.ui.components.EmptyStateCard
-import com.example.ui.theme.GreenLena
-import com.example.ui.theme.RedDena
+import com.example.ui.components.InitialAvatar
+import com.example.ui.theme.LocalFinancialColors
 import com.example.ui.viewmodel.AuthViewModel
 import com.example.ui.viewmodel.KhataViewModel
 import com.example.ui.viewmodel.UiState
@@ -35,6 +36,7 @@ fun ShareKhataScreen(
 ) {
     val khataState by khataViewModel.uiState.collectAsState()
     val authState by authViewModel.uiState.collectAsState()
+    val finColors = LocalFinancialColors.current
 
     val currentKhata = khataState.currentKhata ?: return
     val currentUid = authState.currentUser?.uid ?: ""
@@ -73,7 +75,7 @@ fun ShareKhataScreen(
                         Text(
                             text = currentKhata.name,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
                         )
                     }
                 },
@@ -100,8 +102,9 @@ fun ShareKhataScreen(
         ) {
             // Khata-Specific Sharing notice
             Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -122,8 +125,10 @@ fun ShareKhataScreen(
             // Current Members Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.5f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -143,22 +148,15 @@ fun ShareKhataScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                }
-                            }
+                            InitialAvatar(name = currentKhata.ownerName, size = 38.dp)
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
                                     text = if (currentKhata.ownerUid == currentUid) "${currentKhata.ownerName} (You)" else currentKhata.ownerName,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleSmall
                                 )
-                                Text("Owner", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                Text("Owner", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -167,29 +165,22 @@ fun ShareKhataScreen(
                     val partnerUids = currentKhata.memberUids.filter { it != currentKhata.ownerUid }
                     partnerUids.forEach { pUid ->
                         val partnerName = currentKhata.members[pUid] ?: "Partner"
-                        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        Divider(modifier = Modifier.padding(vertical = 8.dp), color = finColors.cardBorder.copy(alpha = 0.35f))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
-                                    }
-                                }
+                                InitialAvatar(name = partnerName, size = 38.dp)
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
                                         text = if (pUid == currentUid) "$partnerName (You)" else partnerName,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.SemiBold,
+                                        style = MaterialTheme.typography.titleSmall
                                     )
-                                    Text("Authorized Partner", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                                    Text("Authorized Partner", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Medium)
                                 }
                             }
 
@@ -200,7 +191,7 @@ fun ShareKhataScreen(
                                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                                     modifier = Modifier.testTag("remove_partner_$pUid")
                                 ) {
-                                    Text("Stop Sharing")
+                                    Text("Stop Sharing", fontWeight = FontWeight.Bold)
                                 }
                             } else if (pUid == currentUid) {
                                 TextButton(
@@ -208,7 +199,7 @@ fun ShareKhataScreen(
                                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                                     modifier = Modifier.testTag("leave_khata_button")
                                 ) {
-                                    Text("Leave Khata")
+                                    Text("Leave Khata", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -225,11 +216,13 @@ fun ShareKhataScreen(
                 }
             }
 
-            // Search and Add Partner Section (only owner or authorized partner can invite)
+            // Search and Add Partner Section
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.5f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -238,13 +231,13 @@ fun ShareKhataScreen(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "Ask your partner for their unique User ID (e.g. 'rahul_123').",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -262,13 +255,13 @@ fun ShareKhataScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("partner_search_input"),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(14.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = { khataViewModel.searchPartner(searchUserIdInput) },
                             enabled = searchUserIdInput.isNotBlank() && !khataState.isSearchingPartner,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .height(56.dp)
                                 .testTag("search_partner_button")
@@ -291,7 +284,8 @@ fun ShareKhataScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                         ) {
                             Row(
                                 modifier = Modifier
@@ -300,9 +294,13 @@ fun ShareKhataScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(foundUser.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                    Text("@${foundUser.customUserId}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    InitialAvatar(name = foundUser.name, size = 36.dp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(foundUser.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                        Text("@${foundUser.customUserId}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                    }
                                 }
                                 Button(
                                     onClick = {
@@ -316,9 +314,10 @@ fun ShareKhataScreen(
                                         )
                                     },
                                     enabled = !khataState.isActionLoading,
+                                    shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.testTag("send_share_request_button")
                                 ) {
-                                    Text("Send Request")
+                                    Text("Send Request", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -330,8 +329,10 @@ fun ShareKhataScreen(
             if (incomingRequests.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.5f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
@@ -347,15 +348,17 @@ fun ShareKhataScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                             ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
+                                Column(modifier = Modifier.padding(14.dp)) {
                                     Text(
                                         text = "${req.fromName} (@${req.fromCustomUserId})",
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleSmall
                                     )
                                     Text(
-                                        text = "Wants to share khata: '${req.khataName}' with you",
+                                        text = "Invites you to collaborate on '${req.khataName}'",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -366,17 +369,20 @@ fun ShareKhataScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         TextButton(
-                                            onClick = { khataViewModel.respondToShareRequest(req, false, currentUserName) },
-                                            modifier = Modifier.testTag("reject_req_${req.id}")
+                                            onClick = { khataViewModel.respondToShareRequest(req, accept = false, userName = currentUserName) },
+                                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                            modifier = Modifier.testTag("decline_share_request_${req.id}")
                                         ) {
-                                            Text("Reject", color = MaterialTheme.colorScheme.error)
+                                            Text("Decline")
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Button(
-                                            onClick = { khataViewModel.respondToShareRequest(req, true, currentUserName) },
-                                            modifier = Modifier.testTag("accept_req_${req.id}")
+                                            onClick = { khataViewModel.respondToShareRequest(req, accept = true, userName = currentUserName) },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = finColors.lena),
+                                            modifier = Modifier.testTag("accept_share_request_${req.id}")
                                         ) {
-                                            Text("Accept")
+                                            Text("Accept", fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -393,12 +399,11 @@ fun ShareKhataScreen(
         val isSelfLeaving = pUid == currentUid
         AppConfirmationDialog(
             title = if (isSelfLeaving) "Leave '${currentKhata.name}'?" else "Stop Sharing with $pName?",
-            message = if (isSelfLeaving) {
-                "Are you sure you want to leave this shared khata? You will immediately lose access to all its transactions and records. The owner and remaining members will keep their data intact."
-            } else {
-                "If you stop sharing, $pName will immediately lose all access to '${currentKhata.name}'. They will no longer be able to read or modify any transactions in this khata. All existing records and history will remain intact."
-            },
-            confirmButtonText = if (isSelfLeaving) "Leave Khata" else "Remove Partner",
+            message = if (isSelfLeaving)
+                "Are you sure you want to leave '${currentKhata.name}'? You will immediately lose access to this shared khata."
+            else
+                "If you stop sharing, $pName will immediately lose all access to '${currentKhata.name}'. All records remain safe.",
+            confirmButtonText = if (isSelfLeaving) "Leave Khata" else "Stop Sharing",
             onConfirm = {
                 if (isSelfLeaving) {
                     khataViewModel.leaveSharedKhata(currentKhata.id, currentUserName, onBack)

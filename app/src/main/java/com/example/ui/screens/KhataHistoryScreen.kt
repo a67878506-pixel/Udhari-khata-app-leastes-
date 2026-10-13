@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -21,9 +23,7 @@ import com.example.data.model.KhataHistory
 import com.example.ui.components.EmptyStateCard
 import com.example.ui.components.formatCurrency
 import com.example.ui.components.formatDateTime
-import com.example.ui.theme.GreenLena
-import com.example.ui.theme.NavyPrimary
-import com.example.ui.theme.RedDena
+import com.example.ui.theme.LocalFinancialColors
 import com.example.ui.viewmodel.KhataViewModel
 import com.example.ui.viewmodel.UiState
 
@@ -50,7 +50,7 @@ fun KhataHistoryScreen(
                         Text(
                             text = currentKhata.name,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
                         )
                     }
                 },
@@ -75,7 +75,7 @@ fun KhataHistoryScreen(
             when (khataState.history) {
                 is UiState.Loading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 is UiState.Error -> {
@@ -94,8 +94,9 @@ fun KhataHistoryScreen(
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 24.dp)
                         ) {
                             items(history, key = { it.id }) { item ->
                                 HistoryItemCard(item)
@@ -110,25 +111,35 @@ fun KhataHistoryScreen(
 
 @Composable
 fun HistoryItemCard(item: KhataHistory) {
+    val finColors = LocalFinancialColors.current
+
     val icon = when {
-        item.actionType.contains("TRANSACTION") -> Icons.Default.Receipt
+        item.actionType.contains("TRANSACTION") -> Icons.Default.ReceiptLong
         item.actionType.contains("PERSON") -> Icons.Default.Person
         item.actionType.contains("SHARE") -> Icons.Default.Share
+        item.actionType.contains("RECOVER") -> Icons.Default.Restore
         else -> Icons.Default.Info
     }
 
     val iconColor = when {
-        item.actionType.contains("DELETED") || item.actionType.contains("STOPPED") || item.actionType.contains("REJECTED") -> RedDena
-        item.actionType.contains("ADDED") || item.actionType.contains("ACCEPTED") -> GreenLena
-        else -> NavyPrimary
+        item.actionType.contains("DELETED") || item.actionType.contains("STOPPED") || item.actionType.contains("REJECTED") -> finColors.dena
+        item.actionType.contains("ADDED") || item.actionType.contains("ACCEPTED") || item.actionType.contains("RECOVER") -> finColors.lena
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    val iconBg = when {
+        item.actionType.contains("DELETED") || item.actionType.contains("STOPPED") || item.actionType.contains("REJECTED") -> finColors.denaContainer
+        item.actionType.contains("ADDED") || item.actionType.contains("ACCEPTED") || item.actionType.contains("RECOVER") -> finColors.lenaContainer
+        else -> MaterialTheme.colorScheme.primaryContainer
     }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("history_item_${item.id}"),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.5f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
@@ -137,14 +148,14 @@ fun HistoryItemCard(item: KhataHistory) {
                 .padding(14.dp),
             verticalAlignment = Alignment.Top
         ) {
-            Surface(
-                shape = CircleShape,
-                color = iconColor.copy(alpha = 0.12f),
-                modifier = Modifier.size(38.dp)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(iconBg.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
-                }
+                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
             }
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -158,15 +169,16 @@ fun HistoryItemCard(item: KhataHistory) {
                 )
 
                 if (item.amount != null && item.amount > 0) {
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Amount: ${formatCurrency(item.amount)}",
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

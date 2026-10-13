@@ -1,8 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -12,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -20,8 +23,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.GreenLena
-import com.example.ui.theme.NavyPrimary
+import com.example.ui.theme.LocalFinancialColors
 import com.example.ui.viewmodel.AuthUiState
 import com.example.ui.viewmodel.AuthViewModel
 import com.example.ui.viewmodel.UserIdAvailabilityState
@@ -34,6 +36,7 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit
 ) {
     val state by authViewModel.uiState.collectAsState()
+    val finColors = LocalFinancialColors.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -56,39 +59,72 @@ fun LoginScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Brand Icon Emblem
+            Box(
+                modifier = Modifier
+                    .size(68.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MenuBook,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Udhaar Khata",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = "Digital Ledger & Hisaab-Kitaab",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.5f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Welcome Back",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.ExtraBold,
+                        text = "Sign In",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Sign in with your email & password to manage your khatas",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Access your business ledgers and balances",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
+                        modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
                     )
 
                     state.errorMessage?.let { error ->
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 16.dp)
@@ -105,7 +141,7 @@ fun LoginScreen(
                     state.infoMessage?.let { info ->
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 16.dp)
@@ -129,10 +165,10 @@ fun LoginScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("login_email_input"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     OutlinedTextField(
                         value = password,
@@ -153,7 +189,7 @@ fun LoginScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("login_password_input"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp)
                     )
 
                     Row(
@@ -173,7 +209,7 @@ fun LoginScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Button(
                         onClick = {
@@ -182,9 +218,9 @@ fun LoginScreen(
                         enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank(),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
+                            .height(52.dp)
                             .testTag("login_submit_button"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp)
                     ) {
                         if (state.isLoading) {
                             CircularProgressIndicator(
@@ -199,7 +235,7 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Don't have an account?", color = MaterialTheme.colorScheme.onBackground)
@@ -216,34 +252,42 @@ fun LoginScreen(
     if (showForgotPasswordDialog) {
         AlertDialog(
             onDismissRequest = { showForgotPasswordDialog = false },
-            title = { Text("Reset Password") },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Reset Password", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text("Enter your email address and we'll send you a link to reset your password.")
+                    Text("Enter your email address to receive a password reset link.")
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = forgotEmail,
                         onValueChange = { forgotEmail = it },
-                        label = { Text("Email") },
+                        label = { Text("Email Address") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("forgot_email_input")
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().testTag("forgot_password_email_input")
                     )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        authViewModel.forgotPassword(forgotEmail)
-                        showForgotPasswordDialog = false
+                        if (forgotEmail.isNotBlank()) {
+                            authViewModel.forgotPassword(forgotEmail.trim())
+                            showForgotPasswordDialog = false
+                        }
                     },
-                    modifier = Modifier.testTag("send_reset_link_button")
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.testTag("send_reset_button")
                 ) {
-                    Text("Send Link")
+                    Text("Send Link", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showForgotPasswordDialog = false }) {
-                    Text("Cancel")
+                TextButton(
+                    onClick = { showForgotPasswordDialog = false },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.SemiBold)
                 }
             }
         )
@@ -258,6 +302,7 @@ fun SignupScreen(
     onSignupSuccess: () -> Unit
 ) {
     val state by authViewModel.uiState.collectAsState()
+    val finColors = LocalFinancialColors.current
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -286,38 +331,39 @@ fun SignupScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.5f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = "Join Udhaar Khata",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.ExtraBold,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Set up your unique ledger account",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Set up your unique digital ledger account",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
+                        modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
                     )
 
                     state.errorMessage?.let { error ->
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 16.dp)
@@ -341,7 +387,7 @@ fun SignupScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("signup_name_input"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp)
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -351,51 +397,34 @@ fun SignupScreen(
                         value = customUserId,
                         onValueChange = {
                             customUserId = it.trim().lowercase()
-                            authViewModel.clearMessages()
                             authViewModel.checkUserIdAvailability(customUserId)
                         },
                         label = { Text("Unique User ID (e.g. rahul_123)") },
-                        leadingIcon = { Icon(Icons.Default.AlternateEmail, contentDescription = null) },
+                        leadingIcon = { Text("@", fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 14.dp), color = MaterialTheme.colorScheme.primary) },
                         trailingIcon = {
                             when (state.userIdAvailabilityState) {
                                 UserIdAvailabilityState.CHECKING -> {
-                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                                 }
                                 UserIdAvailabilityState.AVAILABLE -> {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = "Available", tint = GreenLena)
+                                    Icon(Icons.Default.CheckCircle, contentDescription = "Available", tint = finColors.lena)
                                 }
-                                UserIdAvailabilityState.TAKEN -> {
-                                    Icon(Icons.Default.Cancel, contentDescription = "Taken", tint = MaterialTheme.colorScheme.error)
+                                UserIdAvailabilityState.TAKEN, UserIdAvailabilityState.ERROR -> {
+                                    Icon(Icons.Default.Cancel, contentDescription = "Unavailable", tint = MaterialTheme.colorScheme.error)
                                 }
-                                UserIdAvailabilityState.ERROR -> {
-                                    Icon(Icons.Default.ErrorOutline, contentDescription = "Error", tint = MaterialTheme.colorScheme.error)
-                                }
-                                UserIdAvailabilityState.IDLE -> null
+                                else -> {}
                             }
                         },
-                        supportingText = {
-                            when (state.userIdAvailabilityState) {
-                                UserIdAvailabilityState.AVAILABLE -> Text("User ID is available", color = GreenLena)
-                                UserIdAvailabilityState.TAKEN -> Text("User ID already taken. Choose another.", color = MaterialTheme.colorScheme.error)
-                                UserIdAvailabilityState.ERROR -> Text(
-                                    state.userIdErrorMessage ?: "Unable to check User ID. Please try again.",
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                                UserIdAvailabilityState.CHECKING -> Text("Checking availability...", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                UserIdAvailabilityState.IDLE -> Text("Used by partners to search & share khatas with you")
-                            }
-                        },
-                        isError = state.userIdAvailabilityState == UserIdAvailabilityState.TAKEN || state.userIdAvailabilityState == UserIdAvailabilityState.ERROR,
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("signup_userid_input"),
-                        shape = RoundedCornerShape(12.dp)
+                            .testTag("signup_user_id_input"),
+                        shape = RoundedCornerShape(14.dp)
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Email
+                    // Email Address
                     OutlinedTextField(
                         value = email,
                         onValueChange = { email = it; authViewModel.clearMessages() },
@@ -406,7 +435,7 @@ fun SignupScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("signup_email_input"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp)
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -431,23 +460,30 @@ fun SignupScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("signup_password_input"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    val isFormValid = name.isNotBlank() && email.isNotBlank() && password.length >= 6 &&
+                            state.userIdAvailabilityState == UserIdAvailabilityState.AVAILABLE
 
                     Button(
                         onClick = {
-                            authViewModel.signUp(name, email, password, customUserId, onSignupSuccess)
+                            authViewModel.signUp(
+                                name = name,
+                                email = email,
+                                pass = password,
+                                customUserId = customUserId,
+                                onSuccess = onSignupSuccess
+                            )
                         },
-                        enabled = !state.isLoading && name.isNotBlank() && email.isNotBlank() &&
-                                password.length >= 6 && customUserId.length >= 3 &&
-                                state.userIdAvailabilityState == UserIdAvailabilityState.AVAILABLE,
+                        enabled = !state.isLoading && isFormValid,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
+                            .height(52.dp)
                             .testTag("signup_submit_button"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp)
                     ) {
                         if (state.isLoading) {
                             CircularProgressIndicator(
@@ -462,10 +498,10 @@ fun SignupScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Already registered?", color = MaterialTheme.colorScheme.onBackground)
+                Text("Already have an account?", color = MaterialTheme.colorScheme.onBackground)
                 TextButton(
                     onClick = onNavigateToLogin,
                     modifier = Modifier.testTag("go_to_login_button")

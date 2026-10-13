@@ -1,10 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -21,17 +21,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Person
-import com.example.ui.components.AppConfirmationDialog
-import com.example.ui.components.EmptyStateCard
-import com.example.ui.components.FinancialSummaryCard
-import com.example.ui.components.SearchTextField
-import com.example.ui.components.formatCurrency
-import com.example.ui.components.formatDateOnly
-import com.example.ui.theme.GreenLena
-import com.example.ui.theme.RedDena
+import com.example.ui.components.*
+import com.example.ui.theme.LocalFinancialColors
 import com.example.ui.viewmodel.AuthViewModel
 import com.example.ui.viewmodel.KhataViewModel
 import com.example.ui.viewmodel.UiState
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,15 +54,23 @@ fun KhataDetailScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameValue by remember { mutableStateOf(currentKhata.name) }
     var showDeleteKhataDialog by remember { mutableStateOf(false) }
+    var selectedFilter by remember { mutableStateOf("ALL") } // ALL, LENA, DENA, SETTLED
 
     val people = when (val state = khataState.people) {
         is UiState.Success -> state.data
         else -> emptyList()
     }
 
-    val filteredPeople = people.filter {
-        it.name.contains(khataState.personSearchQuery, ignoreCase = true) ||
-                it.phone.contains(khataState.personSearchQuery, ignoreCase = true)
+    val filteredPeople = people.filter { person ->
+        val matchesQuery = person.name.contains(khataState.personSearchQuery, ignoreCase = true) ||
+                person.phone.contains(khataState.personSearchQuery, ignoreCase = true)
+        val matchesFilter = when (selectedFilter) {
+            "LENA" -> person.netBalance > 0
+            "DENA" -> person.netBalance < 0
+            "SETTLED" -> person.netBalance == 0.0
+            else -> true
+        }
+        matchesQuery && matchesFilter
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -89,11 +92,16 @@ fun KhataDetailScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(currentKhata.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            text = currentKhata.name,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                         Text(
                             text = if (isOwner) "Owner (Private)" else "Shared Khata",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
                         )
                     }
                 },
@@ -168,6 +176,8 @@ fun KhataDetailScreen(
                 text = { Text("Add Person", fontWeight = FontWeight.Bold) },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(16.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
                 modifier = Modifier.testTag("add_person_fab")
             )
         }
@@ -195,13 +205,48 @@ fun KhataDetailScreen(
                 testTag = "person_search_input"
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Filter Chips
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = selectedFilter == "ALL",
+                    onClick = { selectedFilter = "ALL" },
+                    label = { Text("All (${people.size})") },
+                    shape = RoundedCornerShape(10.dp)
+                )
+                FilterChip(
+                    selected = selectedFilter == "LENA",
+                    onClick = { selectedFilter = "LENA" },
+                    label = { Text("Lena Hai") },
+                    shape = RoundedCornerShape(10.dp)
+                )
+                FilterChip(
+                    selected = selectedFilter == "DENA",
+                    onClick = { selectedFilter = "DENA" },
+                    label = { Text("Dena Hai") },
+                    shape = RoundedCornerShape(10.dp)
+                )
+                FilterChip(
+                    selected = selectedFilter == "SETTLED",
+                    onClick = { selectedFilter = "SETTLED" },
+                    label = { Text("Settled") },
+                    shape = RoundedCornerShape(10.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // People List
             when (khataState.people) {
                 is UiState.Loading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 is UiState.Error -> {
@@ -214,7 +259,7 @@ fun KhataDetailScreen(
                     if (filteredPeople.isEmpty()) {
                         EmptyStateCard(
                             title = if (khataState.personSearchQuery.isNotEmpty()) "No people match '${khataState.personSearchQuery}'" else "No People in this Khata",
-                            subtitle = if (khataState.personSearchQuery.isNotEmpty()) "Try searching with a different name" else "Add your customers, friends, or partners to start recording hisaab.",
+                            subtitle = if (khataState.personSearchQuery.isNotEmpty()) "Try searching with a different name or phone" else "Add your customers, vendors, friends, or partners to start recording hisaab.",
                             actionButton = {
                                 Button(
                                     onClick = {
@@ -222,11 +267,12 @@ fun KhataDetailScreen(
                                         newPersonPhone = ""
                                         showAddPersonDialog = true
                                     },
+                                    shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.testTag("empty_add_person_button")
                                 ) {
                                     Icon(Icons.Default.PersonAdd, contentDescription = null)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Add Person")
+                                    Text("Add Person", fontWeight = FontWeight.Bold)
                                 }
                             }
                         )
@@ -236,7 +282,7 @@ fun KhataDetailScreen(
                                 .fillMaxSize()
                                 .padding(horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
-                            contentPadding = PaddingValues(bottom = 80.dp)
+                            contentPadding = PaddingValues(bottom = 90.dp)
                         ) {
                             items(filteredPeople, key = { it.id }) { person ->
                                 PersonCard(
@@ -258,6 +304,7 @@ fun KhataDetailScreen(
     if (showAddPersonDialog) {
         AlertDialog(
             onDismissRequest = { showAddPersonDialog = false },
+            shape = RoundedCornerShape(24.dp),
             title = { Text("Add Person to Khata", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
@@ -267,8 +314,8 @@ fun KhataDetailScreen(
                         label = { Text("Person Name *") },
                         placeholder = { Text("e.g. Ramesh Kumar") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("add_person_name_input"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().testTag("add_person_name_input")
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
@@ -278,8 +325,8 @@ fun KhataDetailScreen(
                         placeholder = { Text("e.g. 9876543210") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("add_person_phone_input"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().testTag("add_person_phone_input")
                     )
                 }
             },
@@ -298,15 +345,19 @@ fun KhataDetailScreen(
                             )
                         }
                     },
+                    shape = RoundedCornerShape(12.dp),
                     enabled = newPersonName.isNotBlank() && !khataState.isActionLoading,
                     modifier = Modifier.testTag("save_person_button")
                 ) {
-                    Text("Add")
+                    Text("Add", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddPersonDialog = false }) {
-                    Text("Cancel")
+                TextButton(
+                    onClick = { showAddPersonDialog = false },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.SemiBold)
                 }
             }
         )
@@ -316,13 +367,15 @@ fun KhataDetailScreen(
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { Text("Rename Khata") },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Rename Khata", fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
                     value = renameValue,
                     onValueChange = { renameValue = it },
                     label = { Text("Khata Name") },
                     singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth().testTag("rename_khata_input")
                 )
             },
@@ -334,14 +387,18 @@ fun KhataDetailScreen(
                             khataViewModel.updateKhataName(currentKhata.id, renameValue.trim(), currentUserName)
                         }
                     },
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.testTag("save_rename_button")
                 ) {
-                    Text("Save")
+                    Text("Save", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) {
-                    Text("Cancel")
+                TextButton(
+                    onClick = { showRenameDialog = false },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.SemiBold)
                 }
             }
         )
@@ -367,13 +424,16 @@ fun PersonCard(
     person: Person,
     onClick: () -> Unit
 ) {
+    val finColors = LocalFinancialColors.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .testTag("person_card_${person.id}"),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, finColors.cardBorder.copy(alpha = 0.5f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
@@ -387,21 +447,11 @@ fun PersonCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Initials circle
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = person.name.take(1).uppercase(),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
+                // Initial avatar
+                InitialAvatar(
+                    name = person.name,
+                    size = 44.dp
+                )
 
                 Spacer(modifier = Modifier.width(12.dp))
 
@@ -409,16 +459,25 @@ fun PersonCard(
                     Text(
                         text = person.name,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     if (person.phone.isNotEmpty()) {
-                        Text(
-                            text = person.phone,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Phone,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = person.phone,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     } else if (person.lastTransactionAt != null) {
                         Text(
                             text = "Last: ${formatDateOnly(person.lastTransactionAt.toDate())}",
@@ -431,20 +490,20 @@ fun PersonCard(
 
             // Person balance
             val net = person.netBalance
-            val balanceLabel = if (net > 0) "Lena Hai" else if (net < 0) "Dena Hai" else "Settled"
-            val balanceColor = if (net > 0) GreenLena else if (net < 0) RedDena else Color.Gray
+            val balanceLabel = if (net > 0) "Aapko Milenge" else if (net < 0) "Aapko Dene Hain" else "Hisaab Settled"
+            val balanceColor = if (net > 0) finColors.lena else if (net < 0) finColors.dena else MaterialTheme.colorScheme.onSurfaceVariant
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = formatCurrency(kotlin.math.abs(net)),
-                    fontWeight = FontWeight.Bold,
+                    text = formatCurrency(abs(net)),
+                    fontWeight = FontWeight.ExtraBold,
                     fontSize = 17.sp,
                     color = balanceColor
                 )
                 Text(
                     text = balanceLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     color = balanceColor
                 )
             }
